@@ -1,0 +1,77 @@
+# v0 sandbox internal files
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+.snowflake/
+.v0-trash/
+.vercel/
+next.user-config.*
+
+# Environment variables
+.env*.local
+
+# Common ignores
+node_modules
+.next/
+.DS_Store
+.venv/
+venv/
+
+
+# ======================
+# Python cache
+# ======================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+
+# ======================
+# IDE / Editor
+# ======================
+.vscode/
+.idea/
+*.swp
+
+# ======================
+# AI / ML heavy files (IMPORTANT)
+# ======================
+datasets/
+data/
+dataset/
+data_raw/
+data_processed/
+
+models/
+checkpoints/
+weights/
+runs/
+logs/
+
+*.pt
+*.pth
+*.ckpt
+
+# ======================
+# Large outputs
+# ======================
+outputs/
+results/
+tmp/
+temp/
+
+# ======================
+# Jupyter
+# ======================
+.ipynb_checkpoints/
+
+# ======================
+# Node (nếu project mixed)
+# ======================
+node_modules/
+dist/
+build/
