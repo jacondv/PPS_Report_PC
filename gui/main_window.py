@@ -29,7 +29,7 @@ from core.calculator import (
     calculate_area_and_volume, calculate_thickness_distribution,
     CalculationResult, ThicknessDistribution,
 )
-from report.pdf_generator import generate_report
+# from report.pdf_generator import generate_report
 
 
 # ============================================================ background worker
@@ -651,41 +651,123 @@ class MainWindow(QMainWindow):
             return
         self._do_export(calc, dist, suffix=f"_{layer.name}")
 
+    # def _do_export(self, calc: CalculationResult, dist: ThicknessDistribution,
+    #                suffix: str = ""):
+    #     if self.project_info is None:
+    #         QMessageBox.warning(self, "Warning", "Please load a PLY file first!")
+    #         return
+    #     default = (f"report_{self.project_info.project_name}_"
+    #                f"{self.project_info.job_number}{suffix}.pdf")
+    #     fp, _ = QFileDialog.getSaveFileName(
+    #         self, "Save PDF Report", default, "PDF Files (*.pdf)")
+    #     if not fp:
+    #         return
+    #     try:
+    #         self.statusbar.showMessage("Generating PDF report…")
+    #         screenshot = self.viewer.get_screenshot()
+    #         out = generate_report(
+    #             output_path=fp,
+    #             project_info=self.project_info,
+    #             calculation_result=calc,
+    #             thickness_distribution=dist,
+    #             target_thickness_min=self.spin_target_min.value(),
+    #             target_thickness_max=self.spin_target_max.value(),
+    #             screenshot_path=screenshot,
+    #         )
+    #         self.statusbar.showMessage(f"Completed: {out}")
+    #         QMessageBox.information(self, "Success", f"Report exported:\n{out}")
+    #         import subprocess, platform
+    #         if platform.system() == 'Windows':
+    #             os.startfile(out)
+    #         elif platform.system() == 'Darwin':
+    #             subprocess.call(('open', out))
+    #         else:
+    #             subprocess.call(('xdg-open', out))
+    #     except Exception as e:
+    #         QMessageBox.critical(self, "Error", f"Failed to generate report:\n{e}")
     def _do_export(self, calc: CalculationResult, dist: ThicknessDistribution,
-                   suffix: str = ""):
+                suffix: str = ""):
+
+        import os
+        import subprocess
+        import platform
+        from PyQt5.QtWidgets import QMessageBox, QFileDialog
+
         if self.project_info is None:
             QMessageBox.warning(self, "Warning", "Please load a PLY file first!")
             return
-        default = (f"report_{self.project_info.project_name}_"
-                   f"{self.project_info.job_number}{suffix}.pdf")
+
+        # =========================
+        # 1. Default filename
+        # =========================
+        default = (
+            f"report_{self.project_info.project_name}_"
+            f"{self.project_info.job_number}{suffix}.pdf"
+        )
+
         fp, _ = QFileDialog.getSaveFileName(
-            self, "Save PDF Report", default, "PDF Files (*.pdf)")
+            self,
+            "Save PDF Report",
+            default,
+            "PDF Files (*.pdf)"
+        )
+
         if not fp:
             return
+
         try:
             self.statusbar.showMessage("Generating PDF report…")
+
+            # =========================
+            # 2. Capture data (UI layer only)
+            # =========================
             screenshot = self.viewer.get_screenshot()
-            out = generate_report(
-                output_path=fp,
-                project_info=self.project_info,
-                calculation_result=calc,
-                thickness_distribution=dist,
-                target_thickness_min=self.spin_target_min.value(),
-                target_thickness_max=self.spin_target_max.value(),
-                screenshot_path=screenshot,
-            )
+
+            ctx = {
+                "project_info": self.project_info,
+                "calculation_result": calc,
+                "thickness_distribution": dist,
+                "target_min": self.spin_target_min.value(),
+                "target_max": self.spin_target_max.value(),
+                "screenshot_path": screenshot,
+            }
+
+            # =========================
+            # 3. Generate report (NEW ARCH)
+            # =========================
+
+            from report import PDFGenerator
+
+            generator = PDFGenerator(fp)
+            out = generator.generate(ctx)
+
+            # =========================
+            # 4. UI feedback
+            # =========================
             self.statusbar.showMessage(f"Completed: {out}")
-            QMessageBox.information(self, "Success", f"Report exported:\n{out}")
-            import subprocess, platform
+
+            QMessageBox.information(
+                self,
+                "Success",
+                f"Report exported:\n{out}"
+            )
+
+            # =========================
+            # 5. Auto-open file
+            # =========================
             if platform.system() == 'Windows':
                 os.startfile(out)
             elif platform.system() == 'Darwin':
-                subprocess.call(('open', out))
+                subprocess.call(['open', out])
             else:
-                subprocess.call(('xdg-open', out))
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to generate report:\n{e}")
+                subprocess.call(['xdg-open', out])
 
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to generate report:\n{str(e)}"
+            )
     # ================================================================== misc
     def _show_about(self):
         

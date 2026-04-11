@@ -2,6 +2,6 @@
 Report generation modules.
 """
 
-from .pdf_generator import PDFReportGenerator, generate_report
+from report.core.pdf_generator import PDFGenerator
 
-__all__ = ['PDFReportGenerator', 'generate_report']
+__all__ = ['PDFGenerator']

@@ -22,8 +22,9 @@ Phần mềm phân tích độ dày bê tông phun đường hầm từ dữ li�
 
 ### Cài đặt thư viện
 
+
 ```bash
-cd scripts/tunnel_analyzer
+cd PPS_Report_PC
 pip install -r requirements.txt
 ```
 
@@ -82,7 +83,7 @@ Ví dụ: `TunnelA#JOB001#143025#Section1.ply`
 ## Cấu trúc project
 
 ```
-tunnel_analyzer/
+PPS_Report_PC/
 ├── main.py              # Entry point
 ├── requirements.txt     # Dependencies
 ├── README.md           # Documentation
