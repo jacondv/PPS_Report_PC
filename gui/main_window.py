@@ -99,6 +99,7 @@ class MainWindow(QMainWindow):
         self.viewer.signals.selection_changed.connect(self._on_selection_changed)
         self.viewer.signals.selection_cleared.connect(self._on_selection_cleared)
         self.viewer.signals.polygon_mode_ended.connect(self._on_polygon_mode_ended)
+        self.viewer.signals.annotation_added.connect(self._on_annotation_added)
         # Connect visualization controls that need viewer (created after left panel)
         self.spin_point_size.valueChanged.connect(self.viewer.set_point_size)
         self.cmb_colormap.currentTextChanged.connect(self.viewer.set_colormap)
@@ -175,6 +176,7 @@ class MainWindow(QMainWindow):
         self.list_layers.setContextMenuPolicy(Qt.CustomContextMenu)
         self.list_layers.customContextMenuRequested.connect(self._on_layer_context_menu)
         self.list_layers.itemChanged.connect(self._on_layer_item_changed)
+        self.list_layers.currentItemChanged.connect(self._on_layer_selected)
         ll.addWidget(self.list_layers)
 
         # Selection tools
@@ -412,12 +414,25 @@ class MainWindow(QMainWindow):
             pix.fill(QColor(r, g, b))
         return QIcon(pix)
 
+    def _layer_display_text(self, layer: Layer) -> str:
+        count = len(getattr(layer, "annotations", []))
+        note_flag = f" 📝({count})" if count else ""
+        return f"{layer.name}{note_flag}  ({layer.num_points:,} điểm)"
+
+    def _layer_tooltip(self, layer: Layer) -> str:
+        annotations = getattr(layer, "annotations", [])
+        if not annotations:
+            return ""
+        return "\n".join(f"- {ann['text']}" for ann in annotations)
+
     def _add_layer_item(self, layer: Layer):
-        item = QListWidgetItem(f"{layer.name}  ({layer.num_points:,} điểm)")
+        item = QListWidgetItem(self._layer_display_text(layer))
         item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
         item.setCheckState(Qt.Checked if layer.visible else Qt.Unchecked)
         item.setData(Qt.UserRole, layer.name)
         item.setIcon(self._layer_icon(layer))
+        if getattr(layer, "annotations", []):
+            item.setToolTip(self._layer_tooltip(layer))
         if layer.is_original:
             f = item.font(); f.setBold(True); item.setFont(f)
         self.list_layers.blockSignals(True)
@@ -439,6 +454,12 @@ class MainWindow(QMainWindow):
             layer.visible = visible
         self.viewer.set_layer_visible(name, visible)
 
+    def _on_layer_selected(self, current: QListWidgetItem, previous: QListWidgetItem):
+        if current is None:
+            return
+        name = current.data(Qt.UserRole)
+        self.viewer.set_annotation_layer(name)
+
     # ------------------------------------------------------------------ layer context menu
     def _on_layer_context_menu(self, pos: QPoint):
         item = self.list_layers.itemAt(pos)
@@ -456,6 +477,7 @@ class MainWindow(QMainWindow):
         act_calc     = menu.addAction("📊  Calculate for this layer")
         act_export   = menu.addAction("📄  Export PDF for this layer")
         menu.addSeparator()
+        act_note     = menu.addAction("�  Annotate this layer")
         act_rename   = menu.addAction("✏  Rename")
         if not layer.is_original:
             menu.addSeparator()
@@ -475,6 +497,8 @@ class MainWindow(QMainWindow):
             self._calc_and_export_layer(layer)
         elif chosen == act_rename:
             self._rename_layer(name, item)
+        elif chosen == act_note:
+            self._annotate_layer(layer, item)
         elif act_delete and chosen == act_delete:
             self._delete_layer(name)
 
@@ -492,7 +516,7 @@ class MainWindow(QMainWindow):
         actor = self.viewer._actors.pop(old_name, None)
         if actor:
             self.viewer._actors[new_name] = actor
-        item.setText(f"{new_name}  ({layer.num_points:,} points)")
+        item.setText(self._layer_display_text(layer))
         item.setData(Qt.UserRole, new_name)
 
     def _delete_layer(self, name: str):
@@ -620,6 +644,65 @@ class MainWindow(QMainWindow):
         self.btn_calculate.setEnabled(True)
         QMessageBox.critical(self, "Error", f"Error occurred while calculating:\n{msg}")
 
+    def _annotate_layer(self, layer: Layer, item: QListWidgetItem = None):
+        if not layer.visible:
+            QMessageBox.warning(self, "Warning", "Layer must be visible to place an annotation on the view.")
+            return
+        text, ok = QInputDialog.getMultiLineText(
+            self,
+            "Add Annotation",
+            f"Enter annotation text for {layer.name}:"
+        )
+        if not ok or not text.strip():
+            return
+        self.statusbar.showMessage(
+            f"Click on the view to place the annotation for {layer.name}."
+        )
+        self.viewer.enable_annotation_mode(layer.name, text.strip())
+
+    def _on_annotate_layer(self):
+        item = self.list_layers.currentItem()
+        if item is None:
+            QMessageBox.warning(self, "Warning", "Please select a layer first!")
+            return
+        layer = self.layer_manager.get(item.data(Qt.UserRole))
+        if layer is None:
+            QMessageBox.warning(self, "Warning", "Selected layer not found.")
+            return
+        self._annotate_layer(layer, item)
+
+    def _on_annotation_added(self, layer_name: str, event: object):
+        layer = self.layer_manager.get(layer_name)
+        item = self._item_for(layer_name)
+        if layer is None or item is None:
+            return
+
+        action = event.get("action") if isinstance(event, dict) else None
+        annotation = event.get("annotation") if isinstance(event, dict) else event
+
+        if action == "add":
+            layer.annotations.append(annotation)
+        elif action == "move":
+            found = None
+            for existing in layer.annotations:
+                if existing is annotation or existing.get("type") == annotation.get("type") and existing.get("position") == annotation.get("position"):
+                    found = existing
+                    break
+            if found:
+                found.update(annotation)
+        elif action == "delete":
+            layer.annotations = [ann for ann in layer.annotations if ann is not annotation and not (
+                ann.get("type") == annotation.get("type")
+                and ann.get("position") == annotation.get("position")
+                and ann.get("end_position") == annotation.get("end_position")
+            )]
+
+        item.setText(self._layer_display_text(layer))
+        item.setToolTip(self._layer_tooltip(layer))
+        self.statusbar.showMessage(
+            f"Annotation updated for {layer_name}."
+        )
+
     def _clear_results(self):
         for w in (self.lbl_area, self.lbl_volume, self.lbl_volume_liters,
                   self.lbl_mean_thickness, self.lbl_min_thickness,
@@ -635,7 +718,9 @@ class MainWindow(QMainWindow):
         if self.calc_result is None:
             QMessageBox.warning(self, "Warning", "Please run calculation first!")
             return
-        self._do_export(self.calc_result, self.thickness_dist)
+        visible_layers = self.layer_manager.visible_layers()
+        self._do_export(self.calc_result, self.thickness_dist,
+                        visible_layers=visible_layers)
 
     def _calc_and_export_layer(self, layer: Layer):
         """Calculate for a single layer synchronously, then export."""
@@ -649,44 +734,13 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Calculation failed:\n{e}")
             return
-        self._do_export(calc, dist, suffix=f"_{layer.name}")
+        self._do_export(calc, dist,
+                        visible_layers=[layer],
+                        suffix=f"_{layer.name}")
 
-    # def _do_export(self, calc: CalculationResult, dist: ThicknessDistribution,
-    #                suffix: str = ""):
-    #     if self.project_info is None:
-    #         QMessageBox.warning(self, "Warning", "Please load a PLY file first!")
-    #         return
-    #     default = (f"report_{self.project_info.project_name}_"
-    #                f"{self.project_info.job_number}{suffix}.pdf")
-    #     fp, _ = QFileDialog.getSaveFileName(
-    #         self, "Save PDF Report", default, "PDF Files (*.pdf)")
-    #     if not fp:
-    #         return
-    #     try:
-    #         self.statusbar.showMessage("Generating PDF report…")
-    #         screenshot = self.viewer.get_screenshot()
-    #         out = generate_report(
-    #             output_path=fp,
-    #             project_info=self.project_info,
-    #             calculation_result=calc,
-    #             thickness_distribution=dist,
-    #             target_thickness_min=self.spin_target_min.value(),
-    #             target_thickness_max=self.spin_target_max.value(),
-    #             screenshot_path=screenshot,
-    #         )
-    #         self.statusbar.showMessage(f"Completed: {out}")
-    #         QMessageBox.information(self, "Success", f"Report exported:\n{out}")
-    #         import subprocess, platform
-    #         if platform.system() == 'Windows':
-    #             os.startfile(out)
-    #         elif platform.system() == 'Darwin':
-    #             subprocess.call(('open', out))
-    #         else:
-    #             subprocess.call(('xdg-open', out))
-    #     except Exception as e:
-    #         QMessageBox.critical(self, "Error", f"Failed to generate report:\n{e}")
+
     def _do_export(self, calc: CalculationResult, dist: ThicknessDistribution,
-                suffix: str = ""):
+                visible_layers, suffix: str = ""):
 
         import os
         import subprocess
@@ -730,6 +784,7 @@ class MainWindow(QMainWindow):
                 "target_min": self.spin_target_min.value(),
                 "target_max": self.spin_target_max.value(),
                 "screenshot_path": screenshot,
+                "visible_layers": visible_layers,
             }
 
             # =========================

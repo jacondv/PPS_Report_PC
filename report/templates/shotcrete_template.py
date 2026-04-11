@@ -2,6 +2,7 @@
 
 from report.sections.project_section import ProjectSection
 from report.sections.result_section import ResultSection
+from report.sections.segment_notes_section import SegmentNotesSection
 from report.sections.distribution_section import DistributionSection
 from report.sections.image_section import ImageSection
 
@@ -13,6 +14,7 @@ class ShotcreteTemplate:
 
         story += ProjectSection().build(ctx)
         story += ResultSection().build(ctx)
+        story += SegmentNotesSection().build(ctx)
         story += DistributionSection().build(ctx)
 
 

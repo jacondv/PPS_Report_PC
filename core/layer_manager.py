@@ -5,8 +5,8 @@ with its own copy of points and distance data.
 """
 
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Optional, Tuple, List
+from dataclasses import dataclass, field
+from typing import Optional, Tuple, List, Dict
 import numpy as np
 
 
@@ -44,6 +44,7 @@ class Layer:
     visible: bool = True
     is_original: bool = False
     color: Optional[Tuple[float, float, float]] = None
+    annotations: List[Dict[str, object]] = field(default_factory=list)
 
     @property
     def num_points(self) -> int:
