@@ -19,6 +19,8 @@ open3d>=0.17.0
 # PDF Report Generation
 reportlab>=4.0.0
 matplotlib>=3.5.0
+pdfkit>=1.0.0
+jinja2>=3.0.0
 
 # Utilities
 Pillow>=9.0.0
