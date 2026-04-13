@@ -453,6 +453,9 @@ class PointCloudViewer(QWidget):
         self.point_size = 3
         self.colormap   = 'jet'
 
+        self.min_target = 20  # default
+        self.max_target = 40  # default
+
         self._setup_ui()
 
     # ------------------------------------------------------------------ setup
@@ -590,29 +593,45 @@ class PointCloudViewer(QWidget):
         self._layers = layers
 
     # ------------------------------------------------------------------ add / remove
+    def assign_colors(self, layer: Layer) -> np.ndarray:
+        """
+        Assign colors to points based on thickness thresholds.
+        Override this method to customize color logic.
+        """
+        min_target = self.min_target
+        max_target = self.max_target
+        distances = layer.distances
+        colors = np.zeros((len(distances), 3), dtype=np.float32)
+
+        red = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+        green = np.array([0.0, 1.0, 0.0], dtype=np.float32)
+        blue = np.array([0.0, 0.0, 1.0], dtype=np.float32)
+        light_blue = np.array([0.68, 0.85, 0.9], dtype=np.float32)
+
+        colors[distances < min_target] = red
+        colors[(distances >= min_target) & (distances <= max_target)] = green
+        colors[(distances > max_target) & (distances < 150)] = blue
+        colors[distances >= 150] = light_blue
+
+        return colors
+
     def add_layer(self, layer: Layer):
         """Add or refresh one layer. All layers use thickness colormap."""
         self._drop_actor(layer.name)
         cloud = pv.PolyData(layer.points)
         cloud['thickness'] = layer.distances
 
+        # Assign colors using the customizable method
+        colors = self.assign_colors(layer)
+        cloud['colors'] = colors
+
         actor = self.plotter.add_mesh(
             cloud,
-            scalars='thickness',
-            cmap=self.colormap,
+            scalars='colors',
+            rgb=True,
             point_size=self.point_size,
             render_points_as_spheres=True,
-            show_scalar_bar=False,   # scalar bar only for original layer.is_original
-            scalar_bar_args={
-                'title': 'Thickness (mm)',
-                'title_font_size': 12,
-                'label_font_size': 10,
-                'n_labels': 5,
-                'position_x': 0.85,
-                'position_y': 0.10,
-                'width': 0.10,
-                'height': 0.80,
-            },
+            show_scalar_bar=False,
             name=f"layer_{layer.name}",
         )
         self._actors[layer.name] = actor
@@ -656,6 +675,13 @@ class PointCloudViewer(QWidget):
             self.plotter.render()
 
     # ------------------------------------------------------------------ settings
+    def set_thickness_targets(self, min_t: float, max_t: float):
+        self.min_target = min_t
+        self.max_target = max_t
+        # Refresh all layers
+        for layer in self._layers:
+            self.add_layer(layer)
+
     def set_colormap(self, cmap: str):
         self.colormap = cmap
         for layer in self._layers:
