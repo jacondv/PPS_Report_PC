@@ -4,10 +4,10 @@ Uses surface reconstruction and thickness information.
 """
 
 import numpy as np
-from scipy.spatial import Delaunay, ConvexHull
 from dataclasses import dataclass
 from typing import Tuple, List, Optional
-import warnings
+
+from core.helper import surface_area as bpa_surface_area
 
 
 @dataclass
@@ -48,155 +48,70 @@ class ThicknessDistribution:
     target_max: float
 
 
-def estimate_surface_area_alpha_shape(points: np.ndarray, alpha: float = None) -> float:
-    """
-    Estimate surface area using alpha shape (2D projection + 3D correction).
-    
-    For tunnel surfaces, we project to a local 2D plane and compute area,
-    then apply a correction factor based on surface curvature.
-    
-    Args:
-        points: (N, 3) array of XYZ coordinates
-        alpha: Alpha value for alpha shape (auto-computed if None)
-        
-    Returns:
-        Estimated surface area in square units (same as input units)
-    """
-    if len(points) < 3:
-        return 0.0
-    
+
+def _extract_points_and_distances(cloud):
+    """Extract point and thickness arrays from a cloud-like object."""
+    if cloud is None:
+        return np.empty((0, 3), dtype=np.float64), np.empty((0,), dtype=np.float64)
+
+    if isinstance(cloud, tuple) and len(cloud) == 2:
+        pts, dists = cloud
+        return np.asarray(pts, dtype=np.float64), np.asarray(dists, dtype=np.float64)
+
+    if hasattr(cloud, 'points') and hasattr(cloud, 'distances'):
+        return np.asarray(cloud.points, dtype=np.float64), np.asarray(cloud.distances, dtype=np.float64)
+
+    raise TypeError(
+        "cloud must be a tuple (points, distances) or an object with .points and .distances"
+    )
+
+
+def _to_open3d_pointcloud(cloud, points=None):
+    """Convert a cloud-like object into an Open3D PointCloud."""
     try:
-        # Use convex hull for robust area estimation
-        hull = ConvexHull(points)
-        return hull.area
-    except Exception as e:
-        warnings.warn(f"ConvexHull failed: {e}. Using approximate method.")
-        return estimate_surface_area_grid(points)
-
-
-def estimate_surface_area_grid(points: np.ndarray, grid_size: float = None) -> float:
-    """
-    Estimate surface area using grid-based method.
-    
-    Divides the point cloud into a grid and estimates local surface area
-    for each cell, then sums them up.
-    
-    Args:
-        points: (N, 3) array of XYZ coordinates
-        grid_size: Size of grid cells (auto-computed if None)
-        
-    Returns:
-        Estimated surface area
-    """
-    if len(points) < 3:
-        return 0.0
-    
-    # Compute point density and estimate grid size
-    if grid_size is None:
-        # Use k-nearest neighbors to estimate local density
-        from scipy.spatial import cKDTree
-        tree = cKDTree(points)
-        # Sample a subset for efficiency
-        sample_size = min(1000, len(points))
-        sample_indices = np.random.choice(len(points), sample_size, replace=False)
-        sample_points = points[sample_indices]
-        
-        # Find distances to nearest neighbors
-        distances, _ = tree.query(sample_points, k=6)
-        mean_spacing = np.mean(distances[:, 1:])  # Exclude self
-        grid_size = mean_spacing * 3
-    
-    # Create 2D grid projection (assuming tunnel axis is roughly along one axis)
-    # Find principal axes
-    centered = points - points.mean(axis=0)
-    cov = np.cov(centered.T)
-    eigenvalues, eigenvectors = np.linalg.eigh(cov)
-    
-    # Project onto the two largest principal components
-    proj_axes = eigenvectors[:, 1:]  # Two largest
-    projected_2d = centered @ proj_axes
-    
-    # Grid-based area estimation
-    min_xy = projected_2d.min(axis=0)
-    max_xy = projected_2d.max(axis=0)
-    
-    nx = max(1, int((max_xy[0] - min_xy[0]) / grid_size))
-    ny = max(1, int((max_xy[1] - min_xy[1]) / grid_size))
-    
-    # Count occupied cells
-    grid_indices_x = np.clip(((projected_2d[:, 0] - min_xy[0]) / grid_size).astype(int), 0, nx-1)
-    grid_indices_y = np.clip(((projected_2d[:, 1] - min_xy[1]) / grid_size).astype(int), 0, ny-1)
-    
-    occupied = set(zip(grid_indices_x, grid_indices_y))
-    cell_area = grid_size ** 2
-    
-    # Apply correction factor for 3D surface (typically 1.1-1.3 for curved surfaces)
-    correction_factor = 1.15
-    
-    return len(occupied) * cell_area * correction_factor
-
-
-def estimate_surface_area_triangulation(points: np.ndarray) -> float:
-    """
-    Estimate surface area using Delaunay triangulation.
-    
-    This method creates a triangulated surface from the points
-    and sums the areas of all triangles.
-    
-    Args:
-        points: (N, 3) array of XYZ coordinates
-        
-    Returns:
-        Estimated surface area
-    """
-    if len(points) < 4:
-        return 0.0
-    
-    try:
-        # Use Open3D for better surface reconstruction if available
         import open3d as o3d
-        
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(points)
-        
-        # Estimate normals
-        pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(
-            radius=0.1, max_nn=30))
-        pcd.orient_normals_consistent_tangent_plane(k=15)
-        
-        # Ball pivoting or Poisson reconstruction
-        radii = [0.005, 0.01, 0.02, 0.04]
-        mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
-            pcd, o3d.utility.DoubleVector(radii))
-        
-        if len(mesh.triangles) > 0:
-            return mesh.get_surface_area()
-        
-    except ImportError:
-        pass
-    except Exception as e:
-        warnings.warn(f"Open3D triangulation failed: {e}")
-    
-    # Fallback to convex hull
-    return estimate_surface_area_alpha_shape(points)
+    except ImportError as exc:
+        raise ImportError("Open3D is required for BPA surface estimation") from exc
+
+    if isinstance(cloud, o3d.geometry.PointCloud):
+        return cloud
+
+    if points is None and hasattr(cloud, 'points'):
+        points = cloud.points
+
+    if points is None:
+        raise TypeError("Cannot convert cloud to Open3D PointCloud; no point data available")
+
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(np.asarray(points, dtype=np.float64))
+    return pcd
 
 
-def calculate_area_and_volume(points: np.ndarray, 
-                              distances: np.ndarray,
-                              method: str = "grid") -> CalculationResult:
+def calculate_area_and_volume(*args, method: str = "bpa") -> CalculationResult:
     """
-    Calculate surface area and volume from point cloud.
-    
+    Calculate surface area and volume from a cloud-like object.
+
     Volume is calculated as: Surface Area × Mean Thickness
-    
+
     Args:
-        points: (N, 3) array of XYZ coordinates (assumed to be in meters)
-        distances: (N,) array of thickness values in mm
-        method: Area calculation method ("grid", "hull", "triangulation")
-        
+        *args: Either (cloud,) where cloud has .points and .distances or is a
+               tuple/list (points, distances), or (points, distances).
+        method: Ignored. BPA is always used for surface area estimation.
+
     Returns:
         CalculationResult with area and volume
     """
+    if len(args) == 1:
+        cloud = args[0]
+    elif len(args) == 2:
+        cloud = (args[0], args[1])
+    else:
+        raise TypeError(
+            "calculate_area_and_volume() takes either a single cloud object or two arguments (points, distances)."
+        )
+
+    points, distances = _extract_points_and_distances(cloud)
+
     if len(points) == 0:
         return CalculationResult(
             surface_area_m2=0,
@@ -207,32 +122,31 @@ def calculate_area_and_volume(points: np.ndarray,
             std_thickness_mm=0,
             num_points=0
         )
-    
+
     # Filter out invalid distance values
     valid_mask = ~np.isnan(distances) & ~np.isinf(distances)
     valid_distances = distances[valid_mask]
-    
+
     if len(valid_distances) == 0:
         valid_distances = np.array([0])
-    
-    # Calculate surface area based on method
-    if method == "hull":
-        surface_area = estimate_surface_area_alpha_shape(points)
-    elif method == "triangulation":
-        surface_area = estimate_surface_area_triangulation(points)
-    else:  # grid
-        surface_area = estimate_surface_area_grid(points)
-    
+
+    # Calculate surface area using BPA only.
+    try:
+        pcd = _to_open3d_pointcloud(cloud, points)
+        surface_area = bpa_surface_area(pcd)
+    except Exception as exc:
+        raise RuntimeError(f"BPA surface estimation failed: {exc}") from exc
+
     # Convert to square meters if needed (assuming input is in meters)
     surface_area_m2 = surface_area
-    
+
     # Calculate mean thickness
     mean_thickness_mm = float(np.mean(valid_distances))
     mean_thickness_m = mean_thickness_mm / 1000.0  # Convert mm to m
-    
+
     # Calculate volume: Area × Thickness
     volume_m3 = surface_area_m2 * mean_thickness_m
-    
+
     return CalculationResult(
         surface_area_m2=surface_area_m2,
         volume_m3=volume_m3,

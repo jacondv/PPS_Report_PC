@@ -6,6 +6,7 @@ Report always uses only the visible layers.
 
 import os
 import sys
+import json
 import numpy as np
 from typing import Optional
 
@@ -15,6 +16,7 @@ from PyQt5.QtWidgets import (
     QLabel, QPushButton, QSpinBox, QDoubleSpinBox, QComboBox,
     QListWidget, QListWidgetItem, QProgressBar, QStatusBar,
     QFormLayout, QScrollArea, QCheckBox, QMenu, QInputDialog,
+    QAbstractItemView,
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize, QPoint
 from PyQt5.QtGui import QFont, QColor, QPixmap, QIcon
@@ -147,6 +149,11 @@ class MainWindow(QMainWindow):
         self.spin_target_max.setRange(0, 9999); self.spin_target_max.setValue(self.target_max)
         self.spin_target_max.setSuffix(" mm")
         sl.addRow("Max target thickness:", self.spin_target_max)
+
+        # Connect target changes
+        self.spin_target_min.valueChanged.connect(self._on_target_changed)
+        self.spin_target_max.valueChanged.connect(self._on_target_changed)
+
         lay.addWidget(sg)
 
         # ---- Visualization ----
@@ -173,6 +180,7 @@ class MainWindow(QMainWindow):
 
         self.list_layers = QListWidget()
         self.list_layers.setMinimumHeight(120)
+        self.list_layers.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.list_layers.setContextMenuPolicy(Qt.CustomContextMenu)
         self.list_layers.customContextMenuRequested.connect(self._on_layer_context_menu)
         self.list_layers.itemChanged.connect(self._on_layer_item_changed)
@@ -280,7 +288,7 @@ class MainWindow(QMainWindow):
         note.setStyleSheet("color:#718096; font-size:9px;")
         al.addWidget(note)
 
-        self.btn_calculate = QPushButton("Calculate (visible layers)")
+        self.btn_calculate = QPushButton("Calculate (selected)")
         self.btn_calculate.setMinimumHeight(40)
         self.btn_calculate.clicked.connect(self._on_calculate)
         al.addWidget(self.btn_calculate)
@@ -370,6 +378,25 @@ class MainWindow(QMainWindow):
 
             cloud_data = load_ply(filepath, self.cmb_dist_field.currentText())
             self.project_info = parse_filename(filepath)
+
+            # Load job info
+            dir_path = os.path.dirname(filepath)
+            job_info_path = os.path.join(dir_path, 'job_info.json')
+            if os.path.exists(job_info_path):
+                with open(job_info_path, 'r') as f:
+                    job_info = json.load(f)
+                target_thickness = job_info.get('parameters', {}).get('target_thickness', 30)
+                tolerance = job_info.get('parameters', {}).get('tolerance', 10)
+                min_target = target_thickness - tolerance
+                max_target = target_thickness + tolerance
+            else:
+                min_target = 40
+                max_target = 60
+
+            # Set thickness targets in viewer
+            self.viewer.set_thickness_targets(min_target, max_target)
+            self.spin_target_min.setValue(min_target)
+            self.spin_target_max.setValue(max_target)
 
             # Reset everything
             self.layer_manager.clear()
@@ -492,7 +519,8 @@ class MainWindow(QMainWindow):
         elif chosen == act_hide:
             item.setCheckState(Qt.Unchecked)
         elif chosen == act_calc:
-            self._run_calculation(layer.points, layer.distances)
+            self.list_layers.setCurrentItem(item)
+            self._on_calculate()
         elif chosen == act_export:
             self._calc_and_export_layer(layer)
         elif chosen == act_rename:
@@ -556,6 +584,11 @@ class MainWindow(QMainWindow):
         self.viewer.select_by_distance_range(
             self.spin_sel_min.value(), self.spin_sel_max.value())
 
+    def _on_target_changed(self):
+        min_t = self.spin_target_min.value()
+        max_t = self.spin_target_max.value()
+        self.viewer.set_thickness_targets(min_t, max_t)
+
     def _on_selection_changed(self, pts: np.ndarray, dists: np.ndarray):
         self._sel_pts   = pts
         self._sel_dists = dists
@@ -593,11 +626,34 @@ class MainWindow(QMainWindow):
 
     # ================================================================== calculation
     def _on_calculate(self):
-        pts, dists = self.layer_manager.combined_visible()
-        if len(pts) == 0:
+        selected_items = self.list_layers.selectedItems()
+        if not selected_items:
             QMessageBox.warning(self, "Warning",
-                                "No layers are currently visible!")
+                                "Please select one or more layers!")
             return
+        
+        # Collect points and distances from all selected layers
+        all_points = []
+        all_distances = []
+        
+        for item in selected_items:
+            layer_name = item.data(Qt.UserRole)
+            layer = self.layer_manager.get(layer_name)
+            if layer is None:
+                continue
+            if len(layer.points) > 0:
+                all_points.append(layer.points)
+                all_distances.append(layer.distances)
+        
+        if not all_points:
+            QMessageBox.warning(self, "Warning",
+                                "Selected layers have no points!")
+            return
+        
+        # Combine points and distances from all selected layers
+        pts = np.vstack(all_points)
+        dists = np.concatenate(all_distances)
+        
         self._run_calculation(pts, dists)
 
     def _run_calculation(self, pts: np.ndarray, dists: np.ndarray):
