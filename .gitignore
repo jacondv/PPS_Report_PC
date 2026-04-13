@@ -45,6 +45,7 @@ data/
 dataset/
 data_raw/
 data_processed/
+packages/
 
 models/
 checkpoints/
