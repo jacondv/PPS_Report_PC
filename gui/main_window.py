@@ -96,6 +96,7 @@ class MainWindow(QMainWindow):
 
         sp = QSplitter(Qt.Horizontal)
         sp.addWidget(self._create_left_panel())
+        sp.addWidget(self._create_segment_panel())
 
         self.viewer = PointCloudViewer()
         self.viewer.signals.selection_changed.connect(self._on_selection_changed)
@@ -108,7 +109,7 @@ class MainWindow(QMainWindow):
         sp.addWidget(self.viewer)
 
         sp.addWidget(self._create_right_panel())
-        sp.setSizes([300, 840, 300])
+        sp.setSizes([280, 260, 620, 280])
         lay.addWidget(sp)
 
     # ------------------------------------------------------------------ left panel
@@ -168,26 +169,17 @@ class MainWindow(QMainWindow):
         self.cmb_colormap.addItems(['jet', 'viridis', 'plasma', 'coolwarm', 'rainbow'])
         vl.addRow("Colormap:", self.cmb_colormap)
         lay.addWidget(vg)
+        lay.addStretch()
+        return panel
 
-        # ---- Layer Manager ----
-        lg = QGroupBox("Layer Manager")
-        ll = QVBoxLayout(lg)
+    # ------------------------------------------------------------------ segment panel
+    def _create_segment_panel(self) -> QWidget:
+        panel = QWidget()
+        panel.setMinimumWidth(260)
+        panel.setMaximumWidth(360)
+        lay = QVBoxLayout(panel)
+        lay.setSpacing(10)
 
-        # Layer list
-        hint = QLabel("☑ Hide/Show  |  Right-click → Options")
-        hint.setStyleSheet("color:#718096; font-size:9px;")
-        ll.addWidget(hint)
-
-        self.list_layers = QListWidget()
-        self.list_layers.setMinimumHeight(120)
-        self.list_layers.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.list_layers.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.list_layers.customContextMenuRequested.connect(self._on_layer_context_menu)
-        self.list_layers.itemChanged.connect(self._on_layer_item_changed)
-        self.list_layers.currentItemChanged.connect(self._on_layer_selected)
-        ll.addWidget(self.list_layers)
-
-        # Selection tools
         sel_box = QGroupBox("Select Region")
         sel_lay = QVBoxLayout(sel_box)
 
@@ -198,7 +190,6 @@ class MainWindow(QMainWindow):
         self.btn_polygon.toggled.connect(self._on_polygon_toggled)
         sel_lay.addWidget(self.btn_polygon)
 
-        # Range selection row
         rr = QHBoxLayout()
         self.spin_sel_min = QDoubleSpinBox()
         self.spin_sel_min.setRange(-9999, 99999); self.spin_sel_min.setValue(75)
@@ -211,13 +202,32 @@ class MainWindow(QMainWindow):
         btn_range = QPushButton("Select by Thickness")
         btn_range.clicked.connect(self._on_select_by_range)
         sel_lay.addWidget(btn_range)
+        lay.addWidget(sel_box)
 
-        ll.addWidget(sel_box)
+        layer_box = QGroupBox("Layer Manager")
+        layer_box.setStyleSheet("QGroupBox { margin-top: 10px; }")
+        layer_layout = QVBoxLayout(layer_box)
 
-        # Selection status + add button
+        hint = QLabel("☑ Hide/Show  |  Right-click → Options")
+        hint.setStyleSheet("color:#718096; font-size:9px;")
+        layer_layout.addWidget(hint)
+
+        self.list_layers = QListWidget()
+        self.list_layers.setMinimumHeight(180)
+        self.list_layers.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.list_layers.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.list_layers.customContextMenuRequested.connect(self._on_layer_context_menu)
+        self.list_layers.itemChanged.connect(self._on_layer_item_changed)
+        self.list_layers.currentItemChanged.connect(self._on_layer_selected)
+        layer_layout.addWidget(self.list_layers)
+        lay.addWidget(layer_box)
+
         self.lbl_sel_count = QLabel("No selection")
         self.lbl_sel_count.setStyleSheet("color:#2c5282; font-weight:bold; font-size:10px;")
-        ll.addWidget(self.lbl_sel_count)
+        lay.addWidget(self.lbl_sel_count)
+
+        action_box = QGroupBox("Actions")
+        action_layout = QVBoxLayout(action_box)
 
         row_add = QHBoxLayout()
         self.btn_add_seg = QPushButton("➕  Create Segment from Selection")
@@ -226,9 +236,28 @@ class MainWindow(QMainWindow):
         self.btn_clear_sel.clicked.connect(self._on_clear_selection)
         row_add.addWidget(self.btn_add_seg)
         row_add.addWidget(self.btn_clear_sel)
-        ll.addLayout(row_add)
+        action_layout.addLayout(row_add)
 
-        lay.addWidget(lg)
+        note = QLabel("Calculation and PDF export only use visible layers (☑).")
+        note.setWordWrap(True)
+        note.setStyleSheet("color:#718096; font-size:9px;")
+        action_layout.addWidget(note)
+
+        self.btn_calculate = QPushButton("Calculate (selected)")
+        self.btn_calculate.setMinimumHeight(40)
+        self.btn_calculate.clicked.connect(self._on_calculate)
+        action_layout.addWidget(self.btn_calculate)
+
+        self.btn_export_pdf = QPushButton("Export PDF Report (visible layers)")
+        self.btn_export_pdf.setMinimumHeight(40)
+        self.btn_export_pdf.clicked.connect(self._on_export_pdf)
+        action_layout.addWidget(self.btn_export_pdf)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        action_layout.addWidget(self.progress_bar)
+
+        lay.addWidget(action_box)
         lay.addStretch()
         return panel
 
@@ -278,30 +307,6 @@ class MainWindow(QMainWindow):
         dl.addWidget(QLabel("Within Target:"));  dl.addWidget(self.lbl_within)
         dl.addWidget(QLabel("Above Target:")); dl.addWidget(self.lbl_above)
         lay.addWidget(dg)
-
-        # Actions
-        ag = QGroupBox("Actions")
-        al = QVBoxLayout(ag)
-
-        note = QLabel("Calculation and PDF export only use visible layers (☑).")
-        note.setWordWrap(True)
-        note.setStyleSheet("color:#718096; font-size:9px;")
-        al.addWidget(note)
-
-        self.btn_calculate = QPushButton("Calculate (selected)")
-        self.btn_calculate.setMinimumHeight(40)
-        self.btn_calculate.clicked.connect(self._on_calculate)
-        al.addWidget(self.btn_calculate)
-
-        self.btn_export_pdf = QPushButton("Export PDF Report (visible layers)")
-        self.btn_export_pdf.setMinimumHeight(40)
-        self.btn_export_pdf.clicked.connect(self._on_export_pdf)
-        al.addWidget(self.btn_export_pdf)
-
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        al.addWidget(self.progress_bar)
-        lay.addWidget(ag)
 
         lay.addStretch()
         scroll.setWidget(content)

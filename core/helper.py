@@ -36,6 +36,8 @@ def surface_area(
     cl, ind = pcd.remove_radius_outlier(nb_points=8, radius=2*min(radii))
     pcd = pcd.select_by_index(ind)
 
+    if len(pcd.points) == 0:
+        return 0.0
 
     if estimate_normals:
         pcd.estimate_normals(
@@ -44,7 +46,11 @@ def surface_area(
                 max_nn=30
             )
         )
-        pcd.orient_normals_consistent_tangent_plane(50)
+        if pcd.has_normals():
+            try:
+                pcd.orient_normals_consistent_tangent_plane(50)
+            except Exception:
+                pass
 
     mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
         pcd,
