@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }}</title>
+  <style>
+    body { font-family: Helvetica, Arial, sans-serif; color: #1a202c; margin: 20px; }
+    h1 { color: #2d3748; font-size: 24px; margin-bottom: 8px; }
+    .section-title { font-size: 16px; font-weight: bold; margin-top: 24px; margin-bottom: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+    th, td { border: 1px solid #e2e8f0; padding: 8px; vertical-align: top; }
+    th { background: #f7fafc; font-weight: bold; text-align: left; }
+    td { color: #1a202c; }
+    .chart, .screenshot { display: block; margin: 12px auto; max-width: 100%; }
+    .note-title { font-weight: bold; margin-bottom: 4px; }
+    .footer { font-size: 11px; color: #718096; margin-top: 28px; }
+    .notes-block { margin-bottom: 18px; }
+    .notes-block div { margin-bottom: 12px; }
+    .metric-table td { text-align: center; }
+    .metric-table td:first-child { text-align: left; }
+  </style>
+</head>
+<body>
+  <h1>{{ title }}</h1>
+  <div class="section-title">1. PROJECT INFORMATION</div>
+  <table>
+    <tbody>
+      {% for row in project_rows %}
+      <tr>
+        <th>{{ row.label }}</th>
+        <td>{{ row.value }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="section-title">2. ANALYSIS RESULTS</div>
+  <table class="metric-table">
+    <tbody>
+      {% for row in result_main_rows %}
+      <tr>
+        <th>{{ row.label }}</th>
+        <td>{{ row.value }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <table>
+    <tbody>
+      {% for row in result_stats_rows %}
+      <tr>
+        <th>{{ row.label }}</th>
+        <td>{{ row.value }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="section-title">3. THICKNESS DISTRIBUTION</div>
+  <table>
+    <tbody>
+      {% for row in distribution_rows %}
+      <tr>
+        <th>{{ row.label }}</th>
+        <td>{{ row.value }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if chart_path %}
+  <img class="chart" src="{{ chart_path }}" alt="Distribution Chart" />
+  {% endif %}
+
+  {% if segment_notes %}
+  <div class="section-title">4. SEGMENT NOTES</div>
+  <div class="notes-block">
+    {% for note in segment_notes %}
+    <div>
+      <div class="note-title">{{ note.layer_name }}</div>
+      <div>{{ note.text | e | replace("\n", "<br/>") | safe }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if screenshot_path %}
+  <img class="screenshot" src="{{ screenshot_path }}" alt="Report Screenshot" />
+  {% endif %}
+
+  <div class="footer">{{ footer }}</div>
+</body>
+</html>
