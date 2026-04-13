@@ -49,7 +49,7 @@ class CalculationWorker(QThread):
 
     def run(self):
         try:
-            self.progress.emit(30)
+            self.progress.emit(10)
             calc = calculate_area_and_volume(self.points, self.distances)
             self.progress.emit(70)
             dist = calculate_thickness_distribution(
