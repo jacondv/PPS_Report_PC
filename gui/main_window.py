@@ -838,12 +838,24 @@ class MainWindow(QMainWindow):
             # =========================
             screenshot = self.viewer.get_screenshot()
 
+            original_area_m2 = None
+            original_layer = self.layer_manager.original
+            if original_layer is not None:
+                try:
+                    original_area_m2 = calculate_area_and_volume(
+                        original_layer.points,
+                        original_layer.distances
+                    ).surface_area_m2
+                except Exception:
+                    original_area_m2 = None
+
             ctx = {
                 "project_info": self.project_info,
                 "calculation_result": calc,
                 "thickness_distribution": dist,
                 "target_min": self.spin_target_min.value(),
                 "target_max": self.spin_target_max.value(),
+                "original_area_m2": original_area_m2,
                 "screenshot_path": screenshot,
                 "visible_layers": visible_layers,
             }
