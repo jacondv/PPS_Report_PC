@@ -172,7 +172,7 @@ def main():
     # Create and show main window
     from gui.main_window import MainWindow
     window = MainWindow()
-    window.show()
+    window.showMaximized()
     
     # Run application
     sys.exit(app.exec_())
