@@ -1520,6 +1520,7 @@ class PointCloudViewer(QWidget):
             import tempfile
             path = os.path.join(tempfile.gettempdir(), 'tunnel_screenshot.png')
         self.plotter.screenshot(path)
+        print(f"Saved screenshot to: {path}")
         return path
 
     def close(self):
