@@ -56,8 +56,10 @@ class CalculationWorker(QThread):
                 self.distances, self.target_min, self.target_max)
             self.progress.emit(100)
             self.finished.emit(calc, dist)
+            print("Calculation completed successfully.")
         except Exception as e:
             self.error.emit(str(e))
+            
 
 
 # ============================================================ main window
@@ -786,12 +788,14 @@ class MainWindow(QMainWindow):
     def _calc_and_export_layer(self, layer: Layer):
         """Calculate for a single layer synchronously, then export."""
         try:
-            calc = calculate_area_and_volume(layer.points, layer.distances)
-            dist = calculate_thickness_distribution(
-                layer.distances,
-                self.spin_target_min.value(),
-                self.spin_target_max.value(),
-            )
+            # calc = calculate_area_and_volume(layer.points, layer.distances)
+            # dist = calculate_thickness_distribution(
+            #     layer.distances,
+            #     self.spin_target_min.value(),
+            #     self.spin_target_max.value(),
+            # )
+            calc = self.calc_result
+            dist = self.thickness_dist
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Calculation failed:\n{e}")
             return
@@ -842,10 +846,12 @@ class MainWindow(QMainWindow):
             original_layer = self.layer_manager.original
             if original_layer is not None:
                 try:
-                    original_area_m2 = calculate_area_and_volume(
-                        original_layer.points,
-                        original_layer.distances
-                    ).surface_area_m2
+                    # original_area_m2 = calculate_area_and_volume(
+                    #     original_layer.points,
+                    #     original_layer.distances
+                    # ).surface_area_m2
+                    
+                    original_area_m2 = calc.surface_area_m2
                 except Exception:
                     original_area_m2 = None
 

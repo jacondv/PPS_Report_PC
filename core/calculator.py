@@ -9,6 +9,7 @@ from typing import Tuple, List, Optional
 
 from core.helper import surface_area as bpa_surface_area
 
+from utils.utils import timeit
 
 @dataclass
 class CalculationResult:
@@ -49,6 +50,7 @@ class ThicknessDistribution:
 
 
 
+@timeit
 def _extract_points_and_distances(cloud):
     """Extract point and thickness arrays from a cloud-like object."""
     if cloud is None:
@@ -66,6 +68,8 @@ def _extract_points_and_distances(cloud):
     )
 
 
+
+@timeit
 def _to_open3d_pointcloud(cloud, points=None):
     """Convert a cloud-like object into an Open3D PointCloud."""
     try:
@@ -87,6 +91,7 @@ def _to_open3d_pointcloud(cloud, points=None):
     return pcd
 
 
+@timeit
 def calculate_area_and_volume(*args, method: str = "bpa") -> CalculationResult:
     """
     Calculate surface area and volume from a cloud-like object.
@@ -146,7 +151,6 @@ def calculate_area_and_volume(*args, method: str = "bpa") -> CalculationResult:
 
     # Calculate volume: Area × Thickness
     volume_m3 = surface_area_m2 * mean_thickness_m
-
     return CalculationResult(
         surface_area_m2=surface_area_m2,
         volume_m3=volume_m3,
@@ -158,6 +162,7 @@ def calculate_area_and_volume(*args, method: str = "bpa") -> CalculationResult:
     )
 
 
+@timeit
 def calculate_thickness_distribution(distances: np.ndarray,
                                     target_min: float,
                                     target_max: float,

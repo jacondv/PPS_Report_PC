@@ -1,4 +1,5 @@
-
+from utils.utils import timeit
+@timeit
 def surface_area(
     pcd,
     radii=(0.05, 0.07, 0.1),
@@ -30,7 +31,7 @@ def surface_area(
         pcd = pcd.to_legacy()
     
 
-    pcd = pcd.voxel_down_sample(voxel_size=min(radii) / 2)
+    pcd = pcd.voxel_down_sample(voxel_size=min(radii) / 1)
 
 
     cl, ind = pcd.remove_radius_outlier(nb_points=8, radius=2*min(radii))
@@ -40,12 +41,13 @@ def surface_area(
         return 0.0
 
     if estimate_normals:
-        pcd.estimate_normals(
-            search_param=o3d.geometry.KDTreeSearchParamHybrid(
-                radius=max(radii) * 2,
-                max_nn=30
+        if not pcd.has_normals():
+            pcd.estimate_normals(
+                search_param=o3d.geometry.KDTreeSearchParamHybrid(
+                    radius=max(radii) * 2,
+                    max_nn=30
+                )
             )
-        )
         if pcd.has_normals():
             try:
                 pcd.orient_normals_consistent_tangent_plane(50)

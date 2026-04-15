@@ -217,12 +217,15 @@ class HTMLPDFGenerator:
         chart_path = os.path.join(tmp_dir, 'pps_report_distribution.png')
         fig.savefig(chart_path, dpi=150)
         plt.close(fig)
+        print(f"Saved distribution chart to: {chart_path}")
         return chart_path
 
     def _escape_path(self, path):
         if path is None:
             return ''
-        return Path(path).resolve().as_uri()
+        
+        path = Path(path).resolve().as_uri()
+        return path
 
     def _find_wkhtmltopdf(self):
         from shutil import which
@@ -232,7 +235,7 @@ class HTMLPDFGenerator:
             return wkhtmltopdf
 
         possible_paths = [
-            r"C:\WORK\projects\PPS_Report_PC\report\packages\wkhtmltox\bin\wkhtmltopdf.exe",
+            r"report/packages/wkhtmltox/bin/wkhtmltopdf.exe",
             r'C:\Program Files (x86)\wkhtmltopdf\bin\wkhtmltopdf.exe',
         ]
         for candidate in possible_paths:
