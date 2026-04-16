@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import (
     QFormLayout, QScrollArea, QCheckBox, QMenu, QInputDialog,
     QAbstractItemView,
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize, QPoint
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize, QPoint, QSettings
 from PyQt5.QtGui import QFont, QColor, QPixmap, QIcon
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -50,7 +50,7 @@ class CalculationWorker(QThread):
     def run(self):
         try:
             self.progress.emit(10)
-            calc = calculate_area_and_volume(self.points, self.distances)
+            calc = calculate_area_and_volume(self.points, self.distances, target_min=self.target_min)
             self.progress.emit(70)
             dist = calculate_thickness_distribution(
                 self.distances, self.target_min, self.target_max)
@@ -88,6 +88,9 @@ class MainWindow(QMainWindow):
         self._setup_menubar()
         self._setup_toolbar()
         self._setup_statusbar()
+
+        self.settings = QSettings('TunnelAnalyzer', 'TunnelConcreteThicknessAnalyzer')
+        self._load_settings()
 
     # ================================================================== UI
     def _setup_ui(self):
@@ -282,16 +285,16 @@ class MainWindow(QMainWindow):
         bold = QFont("Arial", 12, QFont.Bold)
 
         self.lbl_area           = QLabel("-"); self.lbl_area.setFont(bold)
+        self.lbl_target_coverage  = QLabel("-"); self.lbl_target_coverage.setFont(bold)
         self.lbl_volume         = QLabel("-"); self.lbl_volume.setFont(bold)
-        self.lbl_volume_liters  = QLabel("-")
         self.lbl_mean_thickness = QLabel("-"); self.lbl_mean_thickness.setFont(bold)
         self.lbl_min_thickness  = QLabel("-")
         self.lbl_max_thickness  = QLabel("-")
         self.lbl_std_thickness  = QLabel("-")
         self.lbl_num_points     = QLabel("-")
         rl.addRow("Surface Area (m²):",   self.lbl_area)
+        rl.addRow("Target Coverage (m²):", self.lbl_target_coverage)
         rl.addRow("Volume (m³):",    self.lbl_volume)
-        rl.addRow("Volume (liters):",   self.lbl_volume_liters)
         rl.addRow("Mean Thickness (mm):",   self.lbl_mean_thickness)
         rl.addRow("Min Thickness (mm):",  self.lbl_min_thickness)
         rl.addRow("Max Thickness (mm):",  self.lbl_max_thickness)
@@ -304,7 +307,7 @@ class MainWindow(QMainWindow):
         dl = QVBoxLayout(dg)
         self.lbl_below  = QLabel("-"); self.lbl_below.setStyleSheet("color:#c53030;font-weight:bold;")
         self.lbl_within = QLabel("-"); self.lbl_within.setStyleSheet("color:#276749;font-weight:bold;")
-        self.lbl_above  = QLabel("-"); self.lbl_above.setStyleSheet("color:#975a16;font-weight:bold;")
+        self.lbl_above  = QLabel("-"); self.lbl_above.setStyleSheet("color:#315aff;font-weight:bold;")
         dl.addWidget(QLabel("Below Target:")); dl.addWidget(self.lbl_below)
         dl.addWidget(QLabel("Within Target:"));  dl.addWidget(self.lbl_within)
         dl.addWidget(QLabel("Above Target:")); dl.addWidget(self.lbl_above)
@@ -682,13 +685,13 @@ class MainWindow(QMainWindow):
         self.calc_result    = calc
         self.thickness_dist = dist
 
-        self.lbl_area.setText(f"{calc.surface_area_m2:.4f}")
-        self.lbl_volume.setText(f"{calc.volume_m3:.6f}")
-        self.lbl_volume_liters.setText(f"{calc.volume_liters:.2f}")
-        self.lbl_mean_thickness.setText(f"{calc.mean_thickness_mm:.2f}")
-        self.lbl_min_thickness.setText(f"{calc.min_thickness_mm:.2f}")
-        self.lbl_max_thickness.setText(f"{calc.max_thickness_mm:.2f}")
-        self.lbl_std_thickness.setText(f"{calc.std_thickness_mm:.2f}")
+        self.lbl_area.setText(f"{calc.surface_area_m2:.1f}")
+        self.lbl_target_coverage.setText(f"{calc.area_reached_target_m2:.1f}")
+        self.lbl_volume.setText(f"{calc.volume_m3:.1f}")
+        self.lbl_mean_thickness.setText(f"{calc.mean_thickness_mm:.0f}")
+        self.lbl_min_thickness.setText(f"{calc.min_thickness_mm:.0f}")
+        self.lbl_max_thickness.setText(f"{calc.max_thickness_mm:.0f}")
+        self.lbl_std_thickness.setText(f"{calc.std_thickness_mm:.0f}")
         self.lbl_num_points.setText(f"{calc.num_points:,}")
 
         self.lbl_below.setText(
@@ -767,7 +770,7 @@ class MainWindow(QMainWindow):
         )
 
     def _clear_results(self):
-        for w in (self.lbl_area, self.lbl_volume, self.lbl_volume_liters,
+        for w in (self.lbl_area, self.lbl_volume, self.lbl_target_coverage,
                   self.lbl_mean_thickness, self.lbl_min_thickness,
                   self.lbl_max_thickness, self.lbl_std_thickness,
                   self.lbl_num_points, self.lbl_below, self.lbl_within,
@@ -850,8 +853,7 @@ class MainWindow(QMainWindow):
                     #     original_layer.points,
                     #     original_layer.distances
                     # ).surface_area_m2
-                    
-                    original_area_m2 = calc.surface_area_m2
+                    pass
                 except Exception:
                     original_area_m2 = None
 
@@ -912,5 +914,40 @@ class MainWindow(QMainWindow):
             "Version 2.0 — Layer-based architecture")
 
     def closeEvent(self, event):
+        self._save_settings()
         self.viewer.close()
         event.accept()
+
+    # ------------------------------------------------------------------ persistence
+    def _load_settings(self):
+        self.settings.beginGroup('Visualization')
+        self.spin_point_size.setValue(self.settings.value('point_size', 1, type=int))
+        colormap = self.settings.value('colormap', 'jet')
+        idx = self.cmb_colormap.findText(colormap)
+        if idx >= 0:
+            self.cmb_colormap.setCurrentIndex(idx)
+        self.spin_target_min.setValue(self.settings.value('target_min', self.target_min, type=float))
+        self.spin_target_max.setValue(self.settings.value('target_max', self.target_max, type=float))
+        self.settings.endGroup()
+
+        self.settings.beginGroup('Annotation')
+        annotation_color = self.settings.value('annotation_color', '#000000')
+        self.viewer._annotation_color = annotation_color
+        self.viewer.color_preview.setStyleSheet(f'background-color: {annotation_color}; border: 1px solid #888;')
+        self.viewer.spin_line_width.setValue(self.settings.value('line_width', 3, type=int))
+        self.viewer.spin_font_size.setValue(self.settings.value('font_size', 14, type=int))
+        self.settings.endGroup()
+
+    def _save_settings(self):
+        self.settings.beginGroup('Visualization')
+        self.settings.setValue('point_size', self.spin_point_size.value())
+        self.settings.setValue('colormap', self.cmb_colormap.currentText())
+        self.settings.setValue('target_min', self.spin_target_min.value())
+        self.settings.setValue('target_max', self.spin_target_max.value())
+        self.settings.endGroup()
+
+        self.settings.beginGroup('Annotation')
+        self.settings.setValue('annotation_color', self.viewer._annotation_color)
+        self.settings.setValue('line_width', self.viewer.spin_line_width.value())
+        self.settings.setValue('font_size', self.viewer.spin_font_size.value())
+        self.settings.endGroup()
