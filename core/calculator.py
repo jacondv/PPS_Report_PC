@@ -21,14 +21,25 @@ class CalculationResult:
     max_thickness_mm: float
     std_thickness_mm: float
     num_points: int
-    
+    area_reached_target_m2: float = 0
+    area_reached_target_percent: Optional[float] = None
+
     @property
     def surface_area_cm2(self) -> float:
         return self.surface_area_m2 * 10000
-    
+
+    @property
+    def area_reached_target(self) -> float:
+        return self.area_reached_target_m2 
+
     @property
     def volume_liters(self) -> float:
         return self.volume_m3 * 1000
+    @property
+    def area_reached_target_percent(self) -> Optional[float]:
+        if self.surface_area_m2 > 0:
+            return 100 * self.area_reached_target_m2 / self.surface_area_m2
+        return None
 
 
 @dataclass
@@ -92,7 +103,7 @@ def _to_open3d_pointcloud(cloud, points=None):
 
 
 @timeit
-def calculate_area_and_volume(*args, method: str = "bpa") -> CalculationResult:
+def calculate_area_and_volume(*args, method: str = "bpa", target_min=None) -> CalculationResult:
     """
     Calculate surface area and volume from a cloud-like object.
 
@@ -125,7 +136,8 @@ def calculate_area_and_volume(*args, method: str = "bpa") -> CalculationResult:
             min_thickness_mm=0,
             max_thickness_mm=0,
             std_thickness_mm=0,
-            num_points=0
+            num_points=0,
+            area_reached_target_m2=0
         )
 
     # Filter out invalid distance values
@@ -151,6 +163,28 @@ def calculate_area_and_volume(*args, method: str = "bpa") -> CalculationResult:
 
     # Calculate volume: Area × Thickness
     volume_m3 = surface_area_m2 * mean_thickness_m
+
+
+    # ============================================================
+    # NEW: Area reached target
+    # ============================================================
+    area_reached_target = 0.0
+    
+    if target_min is not None:
+        mask = valid_mask & (distances >= target_min)
+
+        num_valid_target = np.sum(mask)
+
+        # tránh BPA nếu quá ít điểm (tối ưu)
+        if num_valid_target > 50:
+            filtered_points = points[mask]
+
+            try:
+                pcd_filtered = _to_open3d_pointcloud(None, filtered_points)
+                area_reached_target = bpa_surface_area(pcd_filtered)
+            except Exception:
+                area_reached_target = 0.0
+
     return CalculationResult(
         surface_area_m2=surface_area_m2,
         volume_m3=volume_m3,
@@ -158,7 +192,8 @@ def calculate_area_and_volume(*args, method: str = "bpa") -> CalculationResult:
         min_thickness_mm=float(np.min(valid_distances)),
         max_thickness_mm=float(np.max(valid_distances)),
         std_thickness_mm=float(np.std(valid_distances)),
-        num_points=len(points)
+        num_points=len(points),
+        area_reached_target_m2=area_reached_target
     )
 
 

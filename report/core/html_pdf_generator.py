@@ -102,8 +102,8 @@ class HTMLPDFGenerator:
             right_values.append(f'{result.mean_thickness_mm:.1f} mm')
             right_values.append(f'{result.volume_m3:.2f} m³')
             
-            completed_area = result.surface_area_m2
-            total_area = ctx.get('original_area_m2')
+            completed_area = result.area_reached_target_m2
+            total_area = result.surface_area_m2
             if total_area is not None:
                 area_value = f'{completed_area:.1f} / {total_area:.1f} m²'
             else:
