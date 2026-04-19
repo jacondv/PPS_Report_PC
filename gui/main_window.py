@@ -24,6 +24,7 @@ from PyQt5.QtGui import QFont, QColor, QPixmap, QIcon
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from gui.help import HotkeysDialog
 from gui.viewer_3d_new import PointCloudViewer
 from core.ply_loader import load_ply, get_ply_fields
 from core.filename_parser import parse_filename, ProjectInfo
@@ -390,6 +391,9 @@ class MainWindow(QMainWindow):
         ab = QAction("About", self); ab.triggered.connect(self._show_about)
         hm.addAction(ab)
 
+        hotkeys = hm.addAction("Keyboard Shortcuts")
+        hotkeys.triggered.connect(self._show_hotkeys)
+
     def _setup_toolbar(self):
         tb = QToolBar("Main"); tb.setIconSize(QSize(24, 24))
         self.addToolBar(tb)
@@ -407,6 +411,10 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.statusbar)
         self.statusbar.showMessage("Ready — Please open a PLY file")
 
+
+    def _show_hotkeys(self):
+        dlg = HotkeysDialog(self)
+        dlg.exec_()
     # ================================================================== file
     def _on_open_file(self):
         fp, _ = QFileDialog.getOpenFileName(
