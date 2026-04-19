@@ -581,6 +581,19 @@ class PointCloudViewer(QWidget):
         for btn in self._tool_buttons:
             btn.setEnabled(enabled)
 
+    def _delete_annotation_by_layer(self, layer_name: str):
+        to_remove = [ann for ann in self._annotations if ann['layer_name'] == layer_name]
+        for ann in to_remove:
+            actor = ann['annotation']['actor']
+            if isinstance(actor, dict):
+                for a in actor.values():
+                    try: self._overlay_renderer.RemoveActor(a)
+                    except: pass
+            else:
+                try: self._overlay_renderer.RemoveActor(actor)
+                except: pass
+            self._annotations.remove(ann)
+
     def enable_annotation_mode(self, action: str, text: str = None):
         if self._picker.is_active:
             return

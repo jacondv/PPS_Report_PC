@@ -618,6 +618,8 @@ class MainWindow(QMainWindow):
         if item:
             self.list_layers.takeItem(self.list_layers.row(item))
 
+        self.viewer._delete_annotation_by_layer(name)
+
     # ================================================================== selection
     def _on_polygon_toggled(self, checked: bool):
         if checked:
