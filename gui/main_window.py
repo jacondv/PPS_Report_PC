@@ -264,6 +264,10 @@ class MainWindow(QMainWindow):
         self.list_layers.itemChanged.connect(self._on_layer_item_changed)
         self.list_layers.currentItemChanged.connect(self._on_layer_selected)
         layer_layout.addWidget(self.list_layers)
+
+        self.lbl_current_layer = QLabel("No layer selected")
+        self.lbl_current_layer.setStyleSheet("color:#2c5282; font-weight:bold; font-size:14px;")
+        layer_layout.addWidget(self.lbl_current_layer)
         lay.addWidget(layer_box)
 
 
@@ -371,13 +375,13 @@ class MainWindow(QMainWindow):
 
         vm = mb.addMenu("View")
         for label, key, fn in [
-            ("Reset View", "R", self.viewer.reset_view),
             ("Top View",   "T", self.viewer.view_top),
+            ("Bottom View", "G", self.viewer.view_bottom),
             ("Front View", "F", self.viewer.view_front),
-            ("Side View",  "S", self.viewer.view_side),
-            ("Back View", "B", lambda: self.viewer.plotter.view_xz(negative=True)),
-            ("Left View",  "L", lambda: self.viewer.plotter.view_yz(negative=True)),
-            ("Iso View",   "I", lambda: self.viewer.plotter.view_isometric()),
+            ("Back View", "B", self.viewer.view_back),
+            ("Right View", "R", self.viewer.view_right),
+            ("Left View",  "L", self.viewer.view_left),
+            ("Iso View",   "I", self.viewer.view_iso),
         ]:
             a = QAction(label, self); a.setShortcut(key); a.triggered.connect(fn)
             vm.addAction(a)
@@ -422,6 +426,10 @@ class MainWindow(QMainWindow):
                     self.cmb_dist_field.setCurrentText(f); break
 
             cloud_data = load_ply(filepath, self.cmb_dist_field.currentText())
+            # dists = cloud_data.distances
+            # dists = np.where(dists <= -20, np.abs(dists), dists)
+            # dists = np.where((dists > -20) & (dists < 20), 0, dists)
+            # cloud_data.distances = dists
             self.project_info = parse_filename(filepath)
 
             # Load job info
@@ -532,10 +540,14 @@ class MainWindow(QMainWindow):
             layer.visible = visible
         self.viewer.set_layer_visible(name, visible)
 
+
     def _on_layer_selected(self, current: QListWidgetItem, previous: QListWidgetItem):
         if current is None:
+            self.lbl_current_layer.setText("No layer selected")
             return
+        self.viewer._set_tool_buttons_enabled(True)
         name = current.data(Qt.UserRole)
+        self.lbl_current_layer.setText(f"Current Layer: {name}")
         self.viewer.set_annotation_layer(name)
 
     # ------------------------------------------------------------------ layer context menu

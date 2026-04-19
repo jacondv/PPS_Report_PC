@@ -16,8 +16,8 @@ import vtk
 import pyvista as pv
 from pyvistaqt import QtInteractor
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QToolButton, QStyle, QToolTip, QInputDialog, QSizePolicy, QDialog, QDialogButtonBox, QLabel, QTextEdit, QColorDialog, QSpinBox, QLineEdit
-from PyQt5.QtGui import QColor, QCursor, QIcon
+from PyQt5.QtWidgets import QShortcut, QWidget, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QToolButton, QStyle, QToolTip, QInputDialog, QSizePolicy, QDialog, QDialogButtonBox, QLabel, QTextEdit, QColorDialog, QSpinBox, QLineEdit
+from PyQt5.QtGui import QColor, QCursor, QIcon, QKeySequence
 from PyQt5.QtCore import pyqtSignal, QObject, QTimer, QSize, Qt
 from .annotation.annotation_manager import AnnotationManager
 from gui.annotation.text_annotation import TextAnnotation
@@ -435,6 +435,8 @@ class PointCloudViewer(QWidget):
 
         style = self.style()
 
+
+
         self.btn_add_text = QToolButton()
         self.btn_add_text.setText("Text")
         self.btn_add_text.setIcon(QIcon("gui\icons\icons8-text-48.png"))
@@ -444,6 +446,8 @@ class PointCloudViewer(QWidget):
         self.btn_add_text.setToolTip("Add a text annotation")
         # self.btn_add_text.clicked.connect(self._on_text_tool_clicked)
         self.btn_add_text.clicked.connect(lambda: self.annotation_manager.activate("text"))
+        add_text_shortcut = QShortcut(QKeySequence("1"), self)
+        add_text_shortcut.activated.connect(self.btn_add_text.click)
         toolbar_layout.addWidget(self.btn_add_text)
 
         self.btn_add_line = QToolButton()
@@ -454,6 +458,8 @@ class PointCloudViewer(QWidget):
         self.btn_add_line.setCheckable(True)
         self.btn_add_line.setToolTip("Add an leader line annotation")
         self.btn_add_line.clicked.connect(lambda: self.annotation_manager.activate("line"))
+        add_line_shortcut = QShortcut(QKeySequence("2"), self)
+        add_line_shortcut.activated.connect(self.btn_add_line.click)
         toolbar_layout.addWidget(self.btn_add_line)
 
         self.btn_move_annot = QToolButton()
@@ -464,7 +470,10 @@ class PointCloudViewer(QWidget):
         self.btn_move_annot.setIconSize(QSize(32, 32))
         self.btn_move_annot.setToolTip("Move an existing annotation")
         self.btn_move_annot.clicked.connect(lambda: self.annotation_manager.activate("move"))
+        add_move_shortcut = QShortcut(QKeySequence("3"), self)
+        add_move_shortcut.activated.connect(self.btn_move_annot.click)
         toolbar_layout.addWidget(self.btn_move_annot)
+
 
         self.btn_delete_annot = QToolButton()
         self.btn_delete_annot.setText("Delete")
@@ -474,6 +483,8 @@ class PointCloudViewer(QWidget):
         self.btn_delete_annot.setIconSize(QSize(32, 32))
         self.btn_delete_annot.setToolTip("Delete an existing annotation")
         self.btn_delete_annot.clicked.connect(lambda: self.annotation_manager.activate("delete"))
+        add_delete_shortcut = QShortcut(QKeySequence("4"), self)
+        add_delete_shortcut.activated.connect(self.btn_delete_annot.click)
         toolbar_layout.addWidget(self.btn_delete_annot)
 
         toolbar_layout.addStretch(1)
@@ -488,11 +499,9 @@ class PointCloudViewer(QWidget):
         self.btn_annotation_color.clicked.connect(self._choose_annotation_color)
         toolbar_layout.addWidget(self.btn_annotation_color)
 
-        for btn in [
-            self.btn_add_text,
-            self.btn_move_annot,
-            self.btn_delete_annot,
-        ]:
+        self._tool_buttons = [self.btn_add_text, self.btn_add_line, self.btn_move_annot, self.btn_delete_annot]
+        self._set_tool_buttons_enabled(False)
+        for btn in self._tool_buttons:
             btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
 
         toolbar_layout.addWidget(QLabel("Line Width:"))
@@ -568,6 +577,9 @@ class PointCloudViewer(QWidget):
         # self._iren.AddObserver('RightButtonPressEvent', self._on_right_click)
         self._iren.AddObserver('KeyPressEvent', self._on_key_press)
 
+    def _set_tool_buttons_enabled(self, enabled: bool):
+        for btn in self._tool_buttons:
+            btn.setEnabled(enabled)
 
     def enable_annotation_mode(self, action: str, text: str = None):
         if self._picker.is_active:
@@ -736,7 +748,6 @@ class PointCloudViewer(QWidget):
 
     def _on_key_press(self, obj, event):
         tool = self.annotation_manager.active_annotation
-        print(tool)
         if not tool:
             return
 
@@ -1480,9 +1491,20 @@ class PointCloudViewer(QWidget):
         self.plotter.reset_camera()
         self.plotter.view_isometric()
 
-    def view_top(self):   self.plotter.view_xy()
-    def view_front(self): self.plotter.view_xz()
-    def view_side(self):  self.plotter.view_yz()
+    def view_top(self):  self.plotter.view_yx(-1)
+    def view_bottom(self): 
+        self.plotter.view_yx(render=False)
+        self.plotter.camera.Roll(180)
+
+
+    def view_front(self): self.plotter.view_yz(-1)
+    def view_back(self):  self.plotter.view_yz()
+    def view_right(self):  self.plotter.view_xz()
+    def view_left(self):  self.plotter.view_xz(-1)
+    def view_iso(self):   
+        self.plotter.view_isometric(render=False)
+        self.plotter.camera.Azimuth(180)
+
 
     def get_screenshot(self, path: str = None) -> Optional[str]:
         if path is None:
