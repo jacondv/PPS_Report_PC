@@ -19,6 +19,11 @@ from pyvistaqt import QtInteractor
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QToolButton, QStyle, QToolTip, QInputDialog, QSizePolicy, QDialog, QDialogButtonBox, QLabel, QTextEdit, QColorDialog, QSpinBox, QLineEdit
 from PyQt5.QtGui import QColor, QCursor, QIcon
 from PyQt5.QtCore import pyqtSignal, QObject, QTimer, QSize, Qt
+from .annotation.annotation_manager import AnnotationManager
+from gui.annotation.text_annotation import TextAnnotation
+from gui.annotation.line_annotation import LineAnnotation
+from gui.annotation.delete_annotation import DeleteAnnotation
+from gui.annotation.move_annotation import MoveAnnotation
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -373,6 +378,13 @@ class PointCloudViewer(QWidget):
         self.min_target = 20  # default
         self.max_target = 40  # default
 
+        self.annotation_manager = AnnotationManager()
+        self.annotation_manager.register("text", TextAnnotation(self))
+        self.annotation_manager.register("line", LineAnnotation(self))
+        self.annotation_manager.register("delete", DeleteAnnotation(self))
+        self.annotation_manager.register("move", MoveAnnotation(self))
+
+
         self._setup_ui()
 
     # ------------------------------------------------------------------ setup
@@ -430,18 +442,9 @@ class PointCloudViewer(QWidget):
         self.btn_add_text.setIconSize(QSize(32, 32))
         self.btn_add_text.setCheckable(True)
         self.btn_add_text.setToolTip("Add a text annotation")
-        self.btn_add_text.clicked.connect(self._on_text_tool_clicked)
+        # self.btn_add_text.clicked.connect(self._on_text_tool_clicked)
+        self.btn_add_text.clicked.connect(lambda: self.annotation_manager.activate("text"))
         toolbar_layout.addWidget(self.btn_add_text)
-
-        self.btn_add_arrow = QToolButton()
-        self.btn_add_arrow.setText("Arrow")
-        self.btn_add_arrow.setIcon(QIcon("gui\icons\icons8-note-60.png"))
-        self.btn_add_arrow.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
-        self.btn_add_arrow.setIconSize(QSize(35, 34))
-        self.btn_add_arrow.setCheckable(True)
-        self.btn_add_arrow.setToolTip("Add an arrow annotation")
-        self.btn_add_arrow.clicked.connect(self._on_arrow_tool_clicked)
-        toolbar_layout.addWidget(self.btn_add_arrow)
 
         self.btn_add_line = QToolButton()
         self.btn_add_line.setText("Line")
@@ -450,7 +453,7 @@ class PointCloudViewer(QWidget):
         self.btn_add_line.setIconSize(QSize(35, 34))
         self.btn_add_line.setCheckable(True)
         self.btn_add_line.setToolTip("Add an leader line annotation")
-        self.btn_add_line.clicked.connect(self._on_line_tool_clicked)
+        self.btn_add_line.clicked.connect(lambda: self.annotation_manager.activate("line"))
         toolbar_layout.addWidget(self.btn_add_line)
 
         self.btn_move_annot = QToolButton()
@@ -460,7 +463,7 @@ class PointCloudViewer(QWidget):
         self.btn_move_annot.setCheckable(True)
         self.btn_move_annot.setIconSize(QSize(32, 32))
         self.btn_move_annot.setToolTip("Move an existing annotation")
-        self.btn_move_annot.clicked.connect(self._on_move_tool_clicked)
+        self.btn_move_annot.clicked.connect(lambda: self.annotation_manager.activate("move"))
         toolbar_layout.addWidget(self.btn_move_annot)
 
         self.btn_delete_annot = QToolButton()
@@ -470,7 +473,7 @@ class PointCloudViewer(QWidget):
         self.btn_delete_annot.setCheckable(True)
         self.btn_delete_annot.setIconSize(QSize(32, 32))
         self.btn_delete_annot.setToolTip("Delete an existing annotation")
-        self.btn_delete_annot.clicked.connect(self._on_delete_tool_clicked)
+        self.btn_delete_annot.clicked.connect(lambda: self.annotation_manager.activate("delete"))
         toolbar_layout.addWidget(self.btn_delete_annot)
 
         toolbar_layout.addStretch(1)
@@ -487,7 +490,6 @@ class PointCloudViewer(QWidget):
 
         for btn in [
             self.btn_add_text,
-            self.btn_add_arrow,
             self.btn_move_annot,
             self.btn_delete_annot,
         ]:
@@ -537,6 +539,7 @@ class PointCloudViewer(QWidget):
         self._annotation_key_obs = None
         self._annotation_release_obs = None
         self._annotation_preview_actor = None
+        self._annotation_preview_actors = []
         self._selected_outline_actor = None
         self._pending_arrow_annotation = None
         self._annotation_move_target = None
@@ -551,7 +554,26 @@ class PointCloudViewer(QWidget):
             on_cancelled = self._on_polygon_cancelled,
             overlay_renderer=self._overlay_renderer,
         )
+        self._setup_interactor_events()
 
+        # This ensures the plotter's interactor is fully initialized before we add VTK observers
+        self.annotation_manager.activate("text")
+        self.annotation_manager.activate(None)
+
+
+    def _setup_interactor_events(self):
+        self._iren.AddObserver('LeftButtonPressEvent', self._on_left_click)
+        self._iren.AddObserver('MouseMoveEvent', self._on_mouse_move)
+        self._iren.AddObserver('LeftButtonReleaseEvent', self._on_left_release)
+        # self._iren.AddObserver('RightButtonPressEvent', self._on_right_click)
+        self._iren.AddObserver('KeyPressEvent', self._on_key_press)
+
+
+    def enable_annotation_mode(self, action: str, text: str = None):
+        if self._picker.is_active:
+            return
+        self.annotation_manager.activate(action)
+        
     # ------------------------------------------------------------------ layer sync
     def sync_layers(self, layers: List[Layer]):
         """Update the reference list used for polygon projection."""
@@ -639,6 +661,16 @@ class PointCloudViewer(QWidget):
             actor.SetVisibility(visible)
             self.plotter.render()
 
+            for ann in self._annotations:
+                ann_actor = ann['annotation']['actor']
+                ann_layer = ann['layer_name']
+                if ann_layer == name:
+                    if isinstance(ann_actor,dict):
+                        for a in ann_actor.values():
+                            a.SetVisibility(visible)
+                    else:
+                        ann_actor.SetVisibility(visible)
+
     # ------------------------------------------------------------------ settings
     def set_thickness_targets(self, min_t: float, max_t: float):
         self.min_target = min_t
@@ -670,85 +702,46 @@ class PointCloudViewer(QWidget):
     def set_annotation_layer(self, layer_name: str):
         self._annotation_layer_name = layer_name
 
-    def enable_annotation_mode(self, action: str, text: str = None):
-        if self._picker.is_active or self._annotation_mode:
-            return
-        self._annotation_mode = True
-        self._annotation_action = action
-        self._annotation_text = text
-        self._annotation_arrow_start = None
-        self._annotation_move_target = None
-        self._clear_annotation_preview()
-        self._annotation_obs = self._iren.AddObserver('LeftButtonPressEvent', self._on_annotation_click)
-        self._annotation_move_obs = self._iren.AddObserver('MouseMoveEvent', self._on_annotation_move)
-        self._annotation_release_obs = self._iren.AddObserver('LeftButtonReleaseEvent', self._on_annotation_release)
-        self._annotation_cancel_obs = self._iren.AddObserver('RightButtonPressEvent', self._on_annotation_cancel)
-        self._annotation_key_obs = self._iren.AddObserver('KeyPressEvent', self._on_annotation_key)
-        self._previous_interactor_style = self._iren.GetInteractorStyle()
-        self._iren.SetInteractorStyle(vtk.vtkInteractorStyleUser())
-        self._iren.Enable()
-        self._update_tool_cursor()
-        self.plotter.ren_win.Render()
 
-    def disable_annotation_mode(self):
-        if self._annotation_mode:
-            self._end_annotation_mode()
-
-    def _end_annotation_mode(self):
-        self._annotation_mode = False
-        self._annotation_action = None
-        self._annotation_text = None
-        self._annotation_arrow_start = None
-        self._annotation_move_target = None
-        self._clear_annotation_preview()
-        self._clear_annotation_highlight()
-        for obs in (self._annotation_obs, self._annotation_move_obs, self._annotation_release_obs, self._annotation_cancel_obs, self._annotation_key_obs):
-            if obs is not None:
-                try:
-                    self._iren.RemoveObserver(obs)
-                except Exception:
-                    pass
-        self._annotation_obs = None
-        self._annotation_move_obs = None
-        self._annotation_release_obs = None
-        self._annotation_cancel_obs = None
-        self._annotation_key_obs = None
-        try:
-            self.unsetCursor()
-            self.plotter.interactor.unsetCursor()
-        except Exception:
-            pass
-        if getattr(self, '_previous_interactor_style', None) is not None:
-            try:
-                self._iren.SetInteractorStyle(self._previous_interactor_style)
-            except Exception:
-                pass
-            self._previous_interactor_style = None
-        QTimer.singleShot(0, self._restore_camera)
-        self._reset_toolbar_buttons()
 
     def _reset_toolbar_buttons(self):
-        for btn in (self.btn_add_text, self.btn_add_arrow, self.btn_move_annot, self.btn_delete_annot):
+        for btn in (self.btn_add_text, self.btn_add_line, self.btn_move_annot, self.btn_delete_annot):
             btn.blockSignals(True)
             btn.setChecked(False)
             btn.blockSignals(False)
 
-    def _on_annotation_click(self, obj, event):
-        if not self._annotation_mode:
+    def _on_left_click(self, obj, event):
+        tool = self.annotation_manager.active_annotation
+        if not tool:
             return
+
         x, y = self._iren.GetEventPosition()
-        if self._annotation_action == 'text':
-            self._add_text_annotation(x, y)
-        elif self._annotation_action == 'arrow':
-            self._handle_arrow_click(x, y)
-        elif self._annotation_action == 'arrow_label':
-            self._place_arrow_label(x, y)
-        elif self._annotation_action == 'move':
-            self._handle_move_click(x, y)
-        elif self._annotation_action == 'delete':
-            self._handle_delete_click(x, y)
-        elif self._annotation_action == 'line':
-            self._handle_line_click(x, y)
+        tool.on_left_click(x, y)
+    
+    def _on_mouse_move(self, obj, event):
+        tool = self.annotation_manager.active_annotation
+        if not tool:
+            return
+
+        x, y = self._iren.GetEventPosition()
+        tool.on_mouse_move(x, y)
+
+    def _on_left_release(self, obj, event):
+        tool = self.annotation_manager.active_annotation
+        if not tool:
+            return
+
+        x, y = self._iren.GetEventPosition()
+        tool.on_left_release(x, y)
+
+    def _on_key_press(self, obj, event):
+        tool = self.annotation_manager.active_annotation
+        print(tool)
+        if not tool:
+            return
+
+        key = self._iren.GetKeySym()
+        tool.on_key_press(key)
 
     def _on_annotation_move(self, obj, event):
         if not self._annotation_mode:
@@ -775,36 +768,6 @@ class PointCloudViewer(QWidget):
             self.btn_annotation_color.setStyleSheet(f"background-color: {self._annotation_color}; border-radius: 0px;")
 
 
-    def _on_annotation_cancel(self, obj, event):
-        if not self._annotation_mode:
-            return
-        if self._annotation_action == 'arrow' and self._annotation_arrow_start is not None:
-            self._annotation_arrow_start = None
-            self._clear_annotation_preview()
-            QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Arrow drawing canceled. Click first endpoint to start again.")
-            return
-        if self._annotation_action == 'arrow_label':
-            self._cancel_pending_arrow()
-            return
-        if self._annotation_action == 'move' and self._annotation_dragging:
-            self._end_annotation_mode()
-            return
-        self._end_annotation_mode()
-
-    def _on_annotation_key(self, obj, event):
-        if not self._annotation_mode:
-            return
-        key = self._iren.GetKeySym()
-        if key == 'Escape':
-            if self._annotation_action == 'arrow' and self._annotation_arrow_start is not None:
-                self._annotation_arrow_start = None
-                self._clear_annotation_preview()
-                QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Arrow drawing canceled. Click first endpoint to start again.")
-                return
-            if self._annotation_action == 'arrow_label':
-                self._cancel_pending_arrow()
-                return
-            self._end_annotation_mode()
 
     def _clear_annotation_preview(self):
         if self._annotation_preview_actor is not None:
@@ -814,6 +777,12 @@ class PointCloudViewer(QWidget):
                 pass
             self._annotation_preview_actor = None
             self.plotter.ren_win.Render()
+
+        for actor in self._annotation_preview_actors:
+            try:
+                self._overlay_renderer.RemoveActor(actor)
+            except Exception:
+                pass
 
     def _clear_annotation_highlight(self):
         if self._selected_outline_actor is not None:
@@ -942,52 +911,36 @@ class PointCloudViewer(QWidget):
         except Exception:
             pass
 
-    def _update_arrow_preview(self, start, end):
-        self._clear_annotation_preview()
-        if start is None or end is None:
-            return
-        poly = self._build_arrow_polydata(start, end)
-        mapper = vtk.vtkPolyDataMapper2D()
-        mapper.SetInputData(poly)
-        actor = vtk.vtkActor2D()
-        actor.SetMapper(mapper)
-        style = self._current_annotation_style()
-        color = style.get("color", "#000000")
-        if isinstance(color, str):
-            qcolor = QColor(color)
-        else:
-            qcolor = color
-        actor.GetProperty().SetColor(*qcolor.getRgbF()[:3])
-        actor.GetProperty().SetLineWidth(style.get("line_width", 3))
-        actor.GetProperty().SetLineStipplePattern(0xF0F0)
-        actor.GetProperty().SetOpacity(0.85)
-        self._overlay_renderer.AddActor(actor)
-        self._annotation_preview_actor = actor
-        self.plotter.ren_win.Render()
+    
 
-    def _update_line_preview(self, start, end):
+    def _update_text_preview(self, annotation):
         self._clear_annotation_preview()
-        if start is None or end is None:
-            return
-        poly = self._build_line_polydata(start, end)
-        mapper = vtk.vtkPolyDataMapper2D()
-        mapper.SetInputData(poly)
-        actor = vtk.vtkActor2D()
-        actor.SetMapper(mapper)
-        style = self._current_annotation_style()
-        color = style.get("color", "#000000")
-        if isinstance(color, str):
-            qcolor = QColor(color)
-        else:
-            qcolor = color
-        actor.GetProperty().SetColor(*qcolor.getRgbF()[:3])
-        actor.GetProperty().SetLineWidth(style.get("line_width", 3))
-        actor.GetProperty().SetLineStipplePattern(0xF0F0)
-        actor.GetProperty().SetOpacity(0.85)
-        self._overlay_renderer.AddActor(actor)
-        self._annotation_preview_actor = actor
-        self.plotter.ren_win.Render()
 
+        if annotation.get("text_position") is None or not annotation.get("text"):
+            return
+
+        actor = self._create_text_actor(annotation)
+        actor.GetProperty().SetOpacity(0.85)
+        self._annotation_preview_actors.append(actor)
+
+
+
+
+    def _update_line_text_preview(self, annotation):
+
+        self._clear_annotation_preview()
+        if annotation is None:
+            return
+
+        actors = self._build_line_text_actors(annotation, preview=True)
+
+        self._overlay_renderer.AddActor(actors["line_actor"])
+        self._overlay_renderer.AddActor(actors["text_actor"])
+
+        self._annotation_preview_actors = list(actors.values())
+
+        self.plotter.ren_win.Render()
+            
     def _on_text_tool_clicked(self):
         if not self._annotation_layer_name:
             QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Select a layer before annotating.")
@@ -1039,36 +992,6 @@ class PointCloudViewer(QWidget):
         except Exception:
             pass
 
-    def _add_text_annotation(self, x: int, y: int):
-        dialog = TextAnnotationDialog(self)
-        if dialog.exec_() != QDialog.Accepted:
-            self._end_annotation_mode()
-            return
-
-        props = dialog.properties()
-        if not props["text"]:
-            self._end_annotation_mode()
-            return
-
-        style = self._current_annotation_style()
-        annotation = {
-            "type": "text",
-            "text": props["text"],
-            "color": style["color"],
-            "font_size": style["font_size"],
-            "position": (int(x), int(y)),
-        }
-        actor = self._create_text_actor(annotation)
-        annotation["actor"] = actor
-        self._annotations.append({
-            "layer_name": self._annotation_layer_name,
-            "annotation": annotation,
-        })
-        self.signals.annotation_added.emit(self._annotation_layer_name, {
-            "action": "add",
-            "annotation": annotation,
-        })
-        self._end_annotation_mode()
 
     def _handle_line_click(self, x: int, y: int):
         if self._annotation_arrow_start is None:
@@ -1099,29 +1022,6 @@ class PointCloudViewer(QWidget):
         self._annotation_arrow_start = None
         self._end_annotation_mode()
 
-    def _handle_arrow_click(self, x: int, y: int):
-        if self._annotation_arrow_start is None:
-            self._annotation_arrow_start = (int(x), int(y))
-            QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Click the end point of the arrow.")
-            return
-        style = self._current_annotation_style()
-        annotation = {
-            "type": "arrow",
-            "text": "",
-            "color": style["color"],
-            "line_width": style["line_width"],
-            "font_size": style["font_size"],
-            "position": self._annotation_arrow_start,
-            "end_position": (int(x), int(y)),
-        }
-        self._clear_annotation_preview()
-        actor = self._create_arrow_actor(annotation)
-        annotation["actor"] = actor
-        self._pending_arrow_annotation = annotation
-        self._annotation_action = 'arrow_label'
-        self._annotation_arrow_start = None
-        self._update_tool_cursor()
-        QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Click where the arrow label should appear.")
 
     def _handle_move_click(self, x: int, y: int):
         if self._annotation_move_target is None:
@@ -1136,18 +1036,6 @@ class PointCloudViewer(QWidget):
             QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Drag the annotation and release the mouse to finish.")
             return
         QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Drag the annotation and release the mouse to finish.")
-
-    def _on_annotation_release(self, obj, event):
-        if not self._annotation_mode:
-            return
-        if self._annotation_action != 'move':
-            return
-        if not self._annotation_dragging:
-            return
-        self._annotation_dragging = False
-        self._annotation_drag_last = None
-        self._annotation_move_target = None
-        self._end_annotation_mode()
 
     def _handle_delete_click(self, x: int, y: int):
         target = self._find_annotation_at_position(x, y)
@@ -1274,78 +1162,39 @@ class PointCloudViewer(QWidget):
             self._annotations.remove(entry)
         self.plotter.ren_win.Render()
 
-    def _create_text_actor(self, annotation: dict):
-        actor = vtk.vtkTextActor()
-        actor.SetInput(annotation["text"])
-        text_prop = actor.GetTextProperty()
-        text_prop.SetFontSize(annotation.get("font_size", 12))
-        color = annotation.get("color", "#000000")
-        if isinstance(color, str):
-            qcolor = QColor(color)
-        else:
-            qcolor = color
-        rgb = qcolor.getRgbF()[:3]
-        text_prop.SetColor(*rgb)
-        text_prop.SetBold(True)
-        text_prop.SetBackgroundColor(1.0, 1.0, 1.0)
-        text_prop.SetBackgroundOpacity(0.75)
-        actor.SetDisplayPosition(*annotation["position"])
-        self._overlay_renderer.AddActor(actor)
-        self.plotter.ren_win.Render()
-        return actor
+    def _build_line_polydata(self, points):
+        """
+        points: list of (x, y) or (x, y, z)
+        """
 
-    def _create_arrow_text_actor(self, annotation: dict):
-        if not annotation.get("text") or annotation.get("label_position") is None:
+        if len(points) < 2:
             return None
-        actor = vtk.vtkTextActor()
-        actor.SetInput(annotation["text"])
-        text_prop = actor.GetTextProperty()
-        text_prop.SetFontSize(annotation.get("font_size", 12))
-        color = annotation.get("color", "#000000")
-        if isinstance(color, str):
-            qcolor = QColor(color)
-        else:
-            qcolor = color
-        rgb = qcolor.getRgbF()[:3]
-        text_prop.SetColor(*rgb)
-        text_prop.SetBold(True)
-        text_prop.SetBackgroundColor(1.0, 1.0, 1.0)
-        text_prop.SetBackgroundOpacity(0.75)
-        actor.SetDisplayPosition(*annotation["label_position"])
-        self._overlay_renderer.AddActor(actor)
-        return actor
 
-    def _build_line_polydata(self, start, end, cap_len=0.0):
-        points = vtk.vtkPoints()
-        points.InsertNextPoint(start[0], start[1], 0)
-        points.InsertNextPoint(end[0], end[1], 0)
+        vtk_points = vtk.vtkPoints()
 
-        dx = end[0] - start[0]
-        dy = end[1] - start[1]
-        length = max(np.hypot(dx, dy), 1.0)
-        ux = dx / length
-        uy = dy / length
+        for p in points:
+            if len(p) == 2:
+                x, y = p
+                z = 0.0
+            else:
+                x, y, z = p
 
-        head_len = min(30.0, length * 0.25)
-        head_width = max(5.0, head_len * 0.35)
-        base_x = end[0] - ux * head_len
-        base_y = end[1] - uy * head_len
-
-        perp_x = -uy
-        perp_y = ux
-
-        points.InsertNextPoint(base_x + perp_x * head_width, base_y + perp_y * head_width, 0)
-        points.InsertNextPoint(base_x - perp_x * head_width, base_y - perp_y * head_width, 0)
+            vtk_points.InsertNextPoint(x, y, z)
 
         lines = vtk.vtkCellArray()
-        line = vtk.vtkLine()
-        line.GetPointIds().SetId(0, 0)
-        line.GetPointIds().SetId(1, 1)
+
+        line = vtk.vtkPolyLine()
+        line.GetPointIds().SetNumberOfIds(len(points))
+
+        for i in range(len(points)):
+            line.GetPointIds().SetId(i, i)
+
         lines.InsertNextCell(line)
 
         poly = vtk.vtkPolyData()
-        poly.SetPoints(points)
+        poly.SetPoints(vtk_points)
         poly.SetLines(lines)
+
         return poly
 
     def _build_arrow_polydata(self, start, end):
@@ -1404,61 +1253,96 @@ class PointCloudViewer(QWidget):
         
         return poly
 
-    def _create_line_actor(self, annotation: dict):
-        poly = self._build_line_polydata(annotation["position"], annotation["end_position"])
-        mapper = vtk.vtkPolyDataMapper2D()
-        mapper.SetInputData(poly)
+    def _build_text_actor(self, annotation, preview=False):
 
-        actor = vtk.vtkActor2D()
-        actor.SetMapper(mapper)
+        text_actor = vtk.vtkTextActor()
+        text_actor.SetInput(annotation.get("text", ""))
+
+        text_pos = annotation.get("text_position", (0,0))
+        if text_pos:
+            text_actor.SetDisplayPosition(*text_pos)
+
+        prop = text_actor.GetTextProperty()
+        prop.SetFontSize(annotation.get("font_size", 12))
+
         color = annotation.get("color", "#000000")
         if isinstance(color, str):
             qcolor = QColor(color)
         else:
             qcolor = color
-        actor.GetProperty().SetColor(*qcolor.getRgbF()[:3])
-        actor.GetProperty().SetLineWidth(annotation.get("line_width", 2))
-        self._overlay_renderer.AddActor(actor)
-        self.plotter.ren_win.Render()
-        return actor
+        rgb = qcolor.getRgbF()[:3]
+        prop.SetColor(*rgb)
 
-    def _create_arrow_actor(self, annotation: dict):
-        poly = self._build_arrow_polydata(annotation["position"], annotation["end_position"])
+        prop.SetBold(True)
+
+
+        prop.SetBackgroundColor(1.0, 1.0, 1.0)
+
+
+        if preview:
+            prop.SetBackgroundOpacity(0.4)
+        else:
+            prop.SetBackgroundOpacity(0.75)
+        
+        return text_actor
+
+    def _build_line_actor(self, annotation, preview=False):
+
+        poly = self._build_line_polydata(
+            annotation.get("points", [])
+        )
+
+        if poly is None:
+            return None
+
         mapper = vtk.vtkPolyDataMapper2D()
         mapper.SetInputData(poly)
 
-        actor = vtk.vtkActor2D()
-        actor.SetMapper(mapper)
+        line_actor = vtk.vtkActor2D()
+        line_actor.SetMapper(mapper)
+
         color = annotation.get("color", "#000000")
         if isinstance(color, str):
             qcolor = QColor(color)
         else:
             qcolor = color
-        actor.GetProperty().SetColor(*qcolor.getRgbF()[:3])
-        actor.GetProperty().SetLineWidth(annotation.get("line_width", 2))
+        rgb = qcolor.getRgbF()[:3]
+        line_width = annotation.get("line_width", 2)
+        line_actor.GetProperty().SetColor(*rgb)
+        line_actor.GetProperty().SetLineWidth(line_width)
+
+        if preview:
+            line_actor.GetProperty().SetOpacity(0.6)
+            line_actor.GetProperty().SetLineStipplePattern(0xF0F0)
+        else:
+            line_actor.GetProperty().SetOpacity(1.0)
+            line_actor.GetProperty().SetLineStipplePattern(0xFFFF)
+
+        return line_actor
+
+    def _build_line_text_actors(self, annotation: dict, preview=False):
+
+        line_actor = self._build_line_actor(annotation)
+
+        text_actor = self._build_text_actor(annotation)
+
+        return {
+            "line_actor": line_actor,
+            "text_actor": text_actor
+        }
+
+    def _create_text_actor(self, annotation: dict):
+        actor = self._build_text_actor(annotation)
         self._overlay_renderer.AddActor(actor)
-
-        if annotation.get("text") and annotation.get("label_position") is not None:
-            text_actor = vtk.vtkTextActor()
-            text_actor.SetInput(annotation["text"])
-            text_prop = text_actor.GetTextProperty()
-            text_prop.SetFontSize(annotation.get("font_size", 12))
-            color = annotation.get("color", "#000000")
-            if isinstance(color, str):
-                qcolor = QColor(color)
-            else:
-                qcolor = color
-            rgb = qcolor.getRgbF()[:3]
-            text_prop.SetColor(*rgb)
-            text_prop.SetBackgroundColor(1.0, 1.0, 1.0)
-            text_prop.SetBackgroundOpacity(0.75)
-            label_position = annotation.get("label_position")
-            text_actor.SetDisplayPosition(*label_position)
-            self._overlay_renderer.AddActor(text_actor)
-            annotation["text_actor"] = text_actor
-
         self.plotter.ren_win.Render()
         return actor
+
+    def _create_line_text_actor(self, annotation):
+        actors = self._build_line_text_actors(annotation, preview=False)
+        self._overlay_renderer.AddActor(actors["line_actor"])
+        self._overlay_renderer.AddActor(actors["text_actor"])
+        self.plotter.ren_win.Render()
+        return actors
 
     def _remove_annotation_actors_for_layer(self, name: str):
         if name == "all":

@@ -101,12 +101,13 @@ def main():
         color: #333;
     }
     QPushButton {
-        background-color: #3182ce;
+        background-color: #0ea5e9;
         color: white;
         border: none;
         padding: 8px 15px;
         border-radius: 4px;
         font-weight: bold;
+        text-align: left;
     }
     QPushButton:hover {
         background-color: #2c5282;
