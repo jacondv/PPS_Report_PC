@@ -30,10 +30,11 @@ class HTMLPDFGenerator:
                 'enable-local-file-access': None,
                 'page-size': 'A4',
                 'margin-top': '10mm',
-                'margin-bottom': '10mm',
+                'margin-bottom': '5mm',
                 'margin-left': '10mm',
                 'margin-right': '10mm',
                 'zoom': '1.0',
+                'footer-spacing': '2',
             }
             pdfkit.from_file(html_path, self.output_path, options=options, configuration=config,verbose=True)
         except Exception as exc:
@@ -67,6 +68,9 @@ class HTMLPDFGenerator:
 
         chart_path = self._create_distribution_chart(dist, target_min, target_max) if dist is not None else None
 
+        visible_layers_name = ", ".join(layer.name for layer in visible_layers)
+        print(f"Visible layers for report: {visible_layers_name}")
+
         return template.render(
             title='SHOTCRETE THICKNESS REPORT',
             logo_path=self._escape_path("report/assets/images/logo.png"),
@@ -77,7 +81,8 @@ class HTMLPDFGenerator:
             chart_path=chart_path and self._escape_path(chart_path),
             segment_notes=self._segment_notes(visible_layers),
             screenshot_path=self._escape_path(screenshot_path) if screenshot_path else None,
-            current_date=datetime.now().strftime("%Y-%m-%d")
+            layer_name=visible_layers_name,
+            current_date=datetime.now().strftime("%d-%b-%Y")
         )
 
     def _project_rows(self, project, result, target_min, target_max, ctx):
@@ -95,27 +100,28 @@ class HTMLPDFGenerator:
         ]
 
         # Right column labels and values
-        right_labels = ['Average Thickness', 'Shotcrete Volume', 'Area Completed/Total', 'Shotcrete Applied']
+        right_labels = ['Shotcrete Applied', 'Average Thickness', 'Shotcrete Volume', 'Area Completed/Total']
         right_values = []
         
         if result is not None:
-            right_values.append(f'{result.mean_thickness_mm:.1f} mm')
-            right_values.append(f'{result.volume_m3:.2f} m³')
+            if target_min is not None and target_max is not None:
+                right_values.append(self._format_shotcrete_applied(target_min, target_max))
+            else:
+                right_values.append('N/A')
+            right_values.append(f'{result.mean_thickness_mm:.0f} mm')
+            right_values.append(f'{result.volume_m3:.1f} m³')
             
             completed_area = result.area_reached_target_m2
             total_area = result.surface_area_m2
             if total_area is not None:
-                area_value = f'{completed_area:.1f} / {total_area:.1f} m²'
+                area_value = f'{completed_area:.1f} / {total_area:.1f} m² ({(completed_area/total_area*100):.0f}%)'
             else:
                 area_value = f'{completed_area:.1f} m²'
             right_values.append(area_value)
         else:
             right_values.extend(['N/A', 'N/A', 'N/A'])
         
-        if target_min is not None and target_max is not None:
-            right_values.append(self._format_shotcrete_applied(target_min, target_max))
-        else:
-            right_values.append('N/A')
+
 
         # Combine into rows of 4 columns: label1, value1, label2, value2
         rows = []
@@ -192,23 +198,28 @@ class HTMLPDFGenerator:
             return None
 
         fig, ax = plt.subplots(figsize=(8, 4.5))
-        labels = [f'< {tmin}', f'{tmin}-{tmax}', f'> {tmax}']
+        ax.margins(y=0.2)
+        labels = [f'< {int(tmin)}', f'{int(tmin)}-{int(tmax)}', f'> {int(tmax)}']
         values = [dist.below_target, dist.within_target, dist.above_target]
         colors = ["#ff6060", "#64ffa0", "#315aff"]
 
+        total = sum(values) if sum(values) > 0 else 1
         bars = ax.bar(labels, values, color=colors)
+
         for bar in bars:
             height = bar.get_height()
+            percent = (height / total) * 100
             ax.text(
                 bar.get_x() + bar.get_width() / 2,
                 height,
-                f'{int(height):,}',
+                f'{int(height):,}\n({percent:.0f}%)',
                 ha='center',
                 va='bottom',
-                fontsize=10,
+                fontsize=12,
             )
 
-        ax.set_title('Thickness Distribution', fontsize=14, fontweight='bold')
+        ax.set_title('Thickness Distribution', fontsize=16, fontweight='bold')
+        ax.set_xlabel('Thickness Range (mm)')
         ax.set_ylabel('Number of Points')
         ax.grid(axis='y', linestyle='--', alpha=0.3)
         plt.tight_layout()
@@ -236,7 +247,6 @@ class HTMLPDFGenerator:
 
         possible_paths = [
             r"report/packages/wkhtmltox/bin/wkhtmltopdf.exe",
-            r'C:\Program Files (x86)\wkhtmltopdf\bin\wkhtmltopdf.exe',
         ]
         for candidate in possible_paths:
 

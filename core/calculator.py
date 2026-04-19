@@ -22,7 +22,6 @@ class CalculationResult:
     std_thickness_mm: float
     num_points: int
     area_reached_target_m2: float = 0
-    area_reached_target_percent: Optional[float] = None
 
     @property
     def surface_area_cm2(self) -> float:

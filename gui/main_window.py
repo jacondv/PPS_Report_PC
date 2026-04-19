@@ -7,11 +7,12 @@ Report always uses only the visible layers.
 import os
 import sys
 import json
+from matplotlib import container
 import numpy as np
 from typing import Optional
 
 from PyQt5.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
+    QFrame, QLineEdit, QMainWindow, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QToolBar, QAction, QFileDialog, QMessageBox, QGroupBox,
     QLabel, QPushButton, QSpinBox, QDoubleSpinBox, QComboBox,
     QListWidget, QListWidgetItem, QProgressBar, QStatusBar,
@@ -23,7 +24,7 @@ from PyQt5.QtGui import QFont, QColor, QPixmap, QIcon
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from gui.viewer_3d import PointCloudViewer
+from gui.viewer_3d_new import PointCloudViewer
 from core.ply_loader import load_ply, get_ply_fields
 from core.filename_parser import parse_filename, ProjectInfo
 from core.layer_manager import Layer, LayerManager
@@ -97,7 +98,7 @@ class MainWindow(QMainWindow):
         c = QWidget()
         self.setCentralWidget(c)
         lay = QHBoxLayout(c)
-        lay.setContentsMargins(5, 5, 5, 5)
+        lay.setContentsMargins(1, 1, 1, 1)
 
         sp = QSplitter(Qt.Horizontal)
         sp.addWidget(self._create_left_panel())
@@ -115,11 +116,19 @@ class MainWindow(QMainWindow):
 
         sp.addWidget(self._create_right_panel())
         sp.setSizes([280, 260, 620, 280])
+
         lay.addWidget(sp)
 
     # ------------------------------------------------------------------ left panel
     def _create_left_panel(self) -> QWidget:
         panel = QWidget()
+        panel.setObjectName("left_panel")
+        panel.setStyleSheet("""
+            QWidget#left_panel {
+                border: 1px solid #d0d7de;
+                border-radius: 0px;
+            }
+        """)
         panel.setMinimumWidth(260)
         panel.setMaximumWidth(360)
         lay = QVBoxLayout(panel)
@@ -128,7 +137,16 @@ class MainWindow(QMainWindow):
         # ---- File info ----
         fg = QGroupBox("File Information")
         fl = QFormLayout(fg)
-        self.lbl_filename = QLabel("File is not loaded yet")
+
+        self.lbl_filename = QLineEdit("File is not loaded yet")
+        self.lbl_filename.setReadOnly(True)
+        self.lbl_filename.setStyleSheet("""
+            QLineEdit {
+                border: none;
+                background: transparent;
+                padding: 0px;
+            }
+        """)
         self.lbl_project  = QLabel("-")
         self.lbl_job      = QLabel("-")
         self.lbl_time     = QLabel("-")
@@ -172,7 +190,8 @@ class MainWindow(QMainWindow):
 
         self.cmb_colormap = QComboBox()
         self.cmb_colormap.addItems(['jet', 'viridis', 'plasma', 'coolwarm', 'rainbow'])
-        vl.addRow("Colormap:", self.cmb_colormap)
+        self.cmb_colormap.hide()
+        # vl.addRow("Colormap:", self.cmb_colormap)
         lay.addWidget(vg)
         lay.addStretch()
         return panel
@@ -180,20 +199,20 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------ segment panel
     def _create_segment_panel(self) -> QWidget:
         panel = QWidget()
+        panel.setObjectName("segment_panel")
+        panel.setStyleSheet("""
+            QWidget#segment_panel {
+                border: 1px solid #d0d7de;
+                border-radius: 0px;
+            }
+        """)
         panel.setMinimumWidth(260)
         panel.setMaximumWidth(360)
         lay = QVBoxLayout(panel)
         lay.setSpacing(10)
 
-        sel_box = QGroupBox("Select Region")
+        sel_box = QGroupBox("Create Segment Tools")
         sel_lay = QVBoxLayout(sel_box)
-
-        self.btn_polygon = QPushButton("✏  Select Area")
-        self.btn_polygon.setCheckable(True)
-        self.btn_polygon.setMinimumHeight(32)
-        self.btn_polygon.setToolTip("Draw an area to select points")
-        self.btn_polygon.toggled.connect(self._on_polygon_toggled)
-        sel_lay.addWidget(self.btn_polygon)
 
         rr = QHBoxLayout()
         self.spin_sel_min = QDoubleSpinBox()
@@ -204,10 +223,30 @@ class MainWindow(QMainWindow):
         rr.addWidget(QLabel("To:")); rr.addWidget(self.spin_sel_max)
         sel_lay.addLayout(rr)
 
-        btn_range = QPushButton("Select by Thickness")
+        btn_range = QPushButton("📏 Select by Thickness")
         btn_range.clicked.connect(self._on_select_by_range)
         sel_lay.addWidget(btn_range)
         lay.addWidget(sel_box)
+
+        self.btn_polygon = QPushButton("🖊 Select Polygon")
+        self.btn_polygon.setCheckable(True)
+        self.btn_polygon.setMinimumHeight(32)
+        self.btn_polygon.setToolTip("Draw an area to select points")
+        self.btn_polygon.toggled.connect(self._on_polygon_toggled)
+        sel_lay.addWidget(self.btn_polygon)
+
+
+        self.lbl_sel_count = QLabel("No selection")
+        self.lbl_sel_count.setStyleSheet("color:#2c5282; font-weight:bold; font-size:10px;")
+        lay.addWidget(self.lbl_sel_count)
+
+
+        self.btn_add_seg = QPushButton("✅ Create Segment")
+        self.btn_add_seg.clicked.connect(self._on_add_segment)
+        self.btn_clear_sel = QPushButton("❌ Clear Selection")
+        self.btn_clear_sel.clicked.connect(self._on_clear_selection)
+        sel_lay.addWidget(self.btn_add_seg)
+        sel_lay.addWidget(self.btn_clear_sel)
 
         layer_box = QGroupBox("Layer Manager")
         layer_box.setStyleSheet("QGroupBox { margin-top: 10px; }")
@@ -227,33 +266,27 @@ class MainWindow(QMainWindow):
         layer_layout.addWidget(self.list_layers)
         lay.addWidget(layer_box)
 
-        self.lbl_sel_count = QLabel("No selection")
-        self.lbl_sel_count.setStyleSheet("color:#2c5282; font-weight:bold; font-size:10px;")
-        lay.addWidget(self.lbl_sel_count)
 
         action_box = QGroupBox("Actions")
         action_layout = QVBoxLayout(action_box)
 
-        row_add = QHBoxLayout()
-        self.btn_add_seg = QPushButton("➕  Create Segment from Selection")
-        self.btn_add_seg.clicked.connect(self._on_add_segment)
-        self.btn_clear_sel = QPushButton("✕ Clear Selection")
-        self.btn_clear_sel.clicked.connect(self._on_clear_selection)
-        row_add.addWidget(self.btn_add_seg)
-        row_add.addWidget(self.btn_clear_sel)
-        action_layout.addLayout(row_add)
+        # row_add = QHBoxLayout()
+
+        # row_add.addWidget(self.btn_add_seg)
+        # row_add.addWidget(self.btn_clear_sel)
+        # action_layout.addLayout(row_add)
 
         note = QLabel("Calculation and PDF export only use visible layers (☑).")
         note.setWordWrap(True)
         note.setStyleSheet("color:#718096; font-size:9px;")
         action_layout.addWidget(note)
 
-        self.btn_calculate = QPushButton("Calculate (selected)")
+        self.btn_calculate = QPushButton("📊 Calculate")
         self.btn_calculate.setMinimumHeight(40)
         self.btn_calculate.clicked.connect(self._on_calculate)
         action_layout.addWidget(self.btn_calculate)
 
-        self.btn_export_pdf = QPushButton("Export PDF Report (visible layers)")
+        self.btn_export_pdf = QPushButton("📄 PDF Report")
         self.btn_export_pdf.setMinimumHeight(40)
         self.btn_export_pdf.clicked.connect(self._on_export_pdf)
         action_layout.addWidget(self.btn_export_pdf)
@@ -269,6 +302,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------ right panel
     def _create_right_panel(self) -> QWidget:
         panel = QWidget()
+
         panel.setMinimumWidth(260)
         panel.setMaximumWidth(360)
 
@@ -278,6 +312,7 @@ class MainWindow(QMainWindow):
         content = QWidget()
         lay = QVBoxLayout(content)
         lay.setSpacing(10)
+       
 
         # Results
         rg = QGroupBox("Analysis Results")
@@ -435,7 +470,7 @@ class MainWindow(QMainWindow):
             self.lbl_time.setText(self.project_info.formatted_time)
 
             self.statusbar.showMessage(
-                f"Đã tải: {os.path.basename(filepath)}  ({cloud_data.num_points:,} điểm)"
+                f"Loaded: {os.path.basename(filepath)}  ({cloud_data.num_points:,} point)"
             )
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Cannot load file:\n{e}")
@@ -462,6 +497,11 @@ class MainWindow(QMainWindow):
             return ""
         return "\n".join(f"- {ann['text']}" for ann in annotations)
 
+    def _uncheck_all_layers(self):
+        for i in range(self.list_layers.count()):
+            item = self.list_layers.item(i)
+            item.setCheckState(Qt.Unchecked)
+
     def _add_layer_item(self, layer: Layer):
         item = QListWidgetItem(self._layer_display_text(layer))
         item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
@@ -475,6 +515,7 @@ class MainWindow(QMainWindow):
         self.list_layers.blockSignals(True)
         self.list_layers.addItem(item)
         self.list_layers.blockSignals(False)
+        return item
 
     def _item_for(self, name: str) -> Optional[QListWidgetItem]:
         for i in range(self.list_layers.count()):
@@ -603,6 +644,7 @@ class MainWindow(QMainWindow):
         self._sel_pts   = pts
         self._sel_dists = dists
         n = len(pts) if pts is not None else 0
+        print(f"[DEBUG] selection changed -> {n} points")
         self.lbl_sel_count.setText(f"Selected area: {n:,} points")
         self.statusbar.showMessage(f"Selected {n:,} points")
 
@@ -627,9 +669,10 @@ class MainWindow(QMainWindow):
             distances=self._sel_dists.copy(),
         )
         self.viewer.sync_layers(self.layer_manager.layers)
+        self._uncheck_all_layers()
         self.viewer.add_layer(layer)
-        self._add_layer_item(layer)
-
+        item = self._add_layer_item(layer)
+        self.list_layers.setCurrentItem(item)
         self.viewer.clear_selection()
         self._reset_selection()
         self.statusbar.showMessage(f"Đã tạo {layer.name} ({layer.num_points:,} điểm)")
@@ -933,7 +976,7 @@ class MainWindow(QMainWindow):
         self.settings.beginGroup('Annotation')
         annotation_color = self.settings.value('annotation_color', '#000000')
         self.viewer._annotation_color = annotation_color
-        self.viewer.color_preview.setStyleSheet(f'background-color: {annotation_color}; border: 1px solid #888;')
+        self.viewer.btn_annotation_color.setStyleSheet(f'background-color: {annotation_color};border-radius: 0px;')
         self.viewer.spin_line_width.setValue(self.settings.value('line_width', 3, type=int))
         self.viewer.spin_font_size.setValue(self.settings.value('font_size', 14, type=int))
         self.settings.endGroup()
