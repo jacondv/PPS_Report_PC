@@ -68,6 +68,8 @@ def _extract_points_and_distances(cloud):
 
     if isinstance(cloud, tuple) and len(cloud) == 2:
         pts, dists = cloud
+        #TODO: xử lý dists < -30 này là lỗi sai normal, cần xem xét lại cách tính thickness
+
         return np.asarray(pts, dtype=np.float64), np.asarray(dists, dtype=np.float64)
 
     if hasattr(cloud, 'points') and hasattr(cloud, 'distances'):
