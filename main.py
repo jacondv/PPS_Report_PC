@@ -25,8 +25,11 @@ Version: 1.0
 import sys
 import os
 
-# Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+
+if not getattr(sys, 'frozen', False):
+    # Add project root to path
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 REQUIRED = [
     "PyQt5",
@@ -65,10 +68,14 @@ def main():
     from PyQt5.QtWidgets import QApplication
     from PyQt5.QtCore import Qt
     from PyQt5.QtGui import QFont
-    
+    # Fix cho màn hình 200% vs 100%
+    os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
+    # os.environ["QT_SCALE_FACTOR"] = "1"
+    # os.environ["QT_SCREEN_SCALE_FACTORS"] = "2;1"  # màn 1 = 2x, màn 2 = 1x
+    # os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "0"
     # Enable High DPI scaling
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+    # QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    # QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
     
     # Create application
     app = QApplication(sys.argv)
