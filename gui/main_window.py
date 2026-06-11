@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
     QAbstractItemView,
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize, QPoint, QSettings
-from PyQt5.QtGui import QFont, QColor, QPixmap, QIcon
+from PyQt5.QtGui import QFont, QColor, QPixmap, QIcon, QPixmapCache
 
 
 if not getattr(sys, 'frozen', False):
@@ -29,7 +29,7 @@ if not getattr(sys, 'frozen', False):
 
 
 from gui.help import HotkeysDialog
-from gui.viewer_3d_new import PointCloudViewer
+from gui.viewer_3d import PointCloudViewer
 from core.ply_loader import load_ply, get_ply_fields
 from core.filename_parser import parse_filename, ProjectInfo
 from core.layer_manager import Layer, LayerManager
@@ -89,7 +89,6 @@ class MainWindow(QMainWindow):
         # Settings
         self.target_min = 50.0
         self.target_max = 150.0
-
         self._setup_ui()
         self._setup_menubar()
         self._setup_toolbar()
@@ -97,6 +96,7 @@ class MainWindow(QMainWindow):
 
         self.settings = QSettings('TunnelAnalyzer', 'TunnelConcreteThicknessAnalyzer')
         self._load_settings()
+
 
     # ================================================================== UI
     def _setup_ui(self):
@@ -122,7 +122,10 @@ class MainWindow(QMainWindow):
         sp.addWidget(self._create_right_panel())
         sp.setSizes([280, 260, 620, 280])
 
+
         lay.addWidget(sp)
+
+
 
     # ------------------------------------------------------------------ left panel
     def _create_left_panel(self) -> QWidget:
@@ -262,7 +265,7 @@ class MainWindow(QMainWindow):
         layer_layout.addWidget(hint)
 
         self.list_layers = QListWidget()
-        self.list_layers.setMinimumHeight(180)
+        self.list_layers.setMinimumHeight(18)
         self.list_layers.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.list_layers.setContextMenuPolicy(Qt.CustomContextMenu)
         self.list_layers.customContextMenuRequested.connect(self._on_layer_context_menu)
@@ -312,7 +315,7 @@ class MainWindow(QMainWindow):
     def _create_right_panel(self) -> QWidget:
         panel = QWidget()
 
-        panel.setMinimumWidth(260)
+        panel.setMinimumWidth(10)
         panel.setMaximumWidth(360)
 
         scroll = QScrollArea()
