@@ -72,7 +72,7 @@ def main():
     
     # Create application
     app = QApplication(sys.argv)
-    app.setApplicationName("Tunnel Concrete Thickness Analyzer")
+    app.setApplicationName("Jaconequipment - Tunnel Concrete Analyzer")
     app.setOrganizationName("TunnelAnalyzer")
     
     # Set default font

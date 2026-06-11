@@ -20,7 +20,8 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QFrame, QPushButt
 from PyQt5.QtGui import QColor, QCursor, QIcon
 from PyQt5.QtCore import pyqtSignal, QObject, QTimer, QSize, Qt
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if not getattr(sys, 'frozen', False):
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.layer_manager import Layer
 
@@ -558,25 +559,26 @@ class PointCloudViewer(QWidget):
         self._layers = layers
 
     # ------------------------------------------------------------------ add / remove
-    def assign_colors(self, layer: Layer) -> np.ndarray:
+    def assign_colors(self, layer: Layer,
+                      color1=np.array([1.0, 0.0, 0.0], dtype=np.float32),
+                      color2=np.array([0.0, 1.0, 0.0], dtype=np.float32),
+                      color3=np.array([0.0, 0.0, 1.0], dtype=np.float32),
+                      color4=np.array([0.0, 0.0, 1.0], dtype=np.float32)) -> np.ndarray:
         """
         Assign colors to points based on thickness thresholds.
         Override this method to customize color logic.
+        light_blue is used for distances >= 150 to visually separate very thick points.
+        np.array([0.68, 0.85, 0.9], dtype=np.float32)
         """
         min_target = self.min_target
         max_target = self.max_target
         distances = layer.distances
         colors = np.zeros((len(distances), 3), dtype=np.float32)
 
-        red = np.array([1.0, 0.0, 0.0], dtype=np.float32)
-        green = np.array([0.0, 1.0, 0.0], dtype=np.float32)
-        blue = np.array([0.0, 0.0, 1.0], dtype=np.float32)
-        light_blue = np.array([0.68, 0.85, 0.9], dtype=np.float32)
-
-        colors[distances < min_target] = red
-        colors[(distances >= min_target) & (distances <= max_target)] = green
-        colors[(distances > max_target) & (distances < 150)] = blue
-        colors[distances >= 150] = light_blue
+        colors[distances < min_target] = color1 # Red
+        colors[(distances >= min_target) & (distances <= max_target)] = color2 # Green
+        colors[(distances > max_target) & (distances < 150)] = color3 # Blue
+        colors[distances >= 150] = color4 # Light Blue for very thick points
 
         return colors
 

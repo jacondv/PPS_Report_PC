@@ -1,4 +1,5 @@
 import os
+import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -6,6 +7,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from matplotlib import pyplot as plt
 import pdfkit
+from utils.path_helper import resource_path
 
 
 class HTMLPDFGenerator:
@@ -73,7 +75,7 @@ class HTMLPDFGenerator:
 
         return template.render(
             title='SHOTCRETE THICKNESS REPORT',
-            logo_path=self._escape_path("report/assets/images/logo.png"),
+            logo_path=self._escape_path(resource_path("report/assets/images/logo.png")),
             project_rows=self._project_rows(project, result, target_min, target_max, ctx),
             result_main_rows=self._result_main_rows(result),
             result_stats_rows=self._result_stats_rows(result),
@@ -241,18 +243,67 @@ class HTMLPDFGenerator:
     def _find_wkhtmltopdf(self):
         from shutil import which
 
+        # Thử PATH hệ thống trước
         wkhtmltopdf = which('wkhtmltopdf')
         if wkhtmltopdf:
             return wkhtmltopdf
 
-        possible_paths = [
-            r"report/packages/wkhtmltox/bin/wkhtmltopdf.exe",
-        ]
-        for candidate in possible_paths:
+        # Xác định tất cả base có thể
+        bases = set()
 
+        if getattr(sys, 'frozen', False):
+            exe_dir = os.path.dirname(sys.executable)
+            bases.add(exe_dir)
+            bases.add(os.path.join(exe_dir, '_internal'))
+        
+        # Luôn thêm các base từ __file__
+        try:
+            file_dir = os.path.dirname(os.path.abspath(__file__))
+            bases.add(file_dir)
+            bases.add(os.path.dirname(file_dir))         # lên 1 cấp
+            bases.add(os.path.dirname(os.path.dirname(file_dir)))  # lên 2 cấp
+        except Exception:
+            pass
+
+        # Thêm thư mục hiện tại
+        bases.add(os.getcwd())
+
+        rel = os.path.join('report', 'packages', 'wkhtmltox', 'bin', 'wkhtmltopdf.exe')
+
+        for base in bases:
+            candidate = os.path.join(base, rel)
+            print(f"[DEBUG] checking: {candidate}")
             if os.path.exists(candidate):
+                print(f"[DEBUG] found: {candidate}")
                 return candidate
 
+        # In ra toàn bộ để debug
+        print(f"[DEBUG] sys.executable: {sys.executable}")
+        print(f"[DEBUG] cwd: {os.getcwd()}")
+        print(f"[DEBUG] frozen: {getattr(sys, 'frozen', False)}")
+
         raise RuntimeError(
-            'wkhtmltopdf executable not found. Install wkhtmltopdf and ensure it is on the PATH.'
+            'wkhtmltopdf executable not found.\n'
+            f'Searched bases: {bases}\n'
+            f'Relative path: {rel}'
         )
+    
+
+    # def _find_wkhtmltopdf(self):
+    #     from shutil import which
+
+    #     wkhtmltopdf = which('wkhtmltopdf')
+    #     if wkhtmltopdf:
+    #         return wkhtmltopdf
+
+    #     possible_paths = [
+    #         r"report/packages/wkhtmltox/bin/wkhtmltopdf.exe",
+    #     ]
+    #     for candidate in possible_paths:
+
+    #         if os.path.exists(candidate):
+    #             return candidate
+
+    #     raise RuntimeError(
+    #         'wkhtmltopdf executable not found. Install wkhtmltopdf and ensure it is on the PATH.'
+    #     )

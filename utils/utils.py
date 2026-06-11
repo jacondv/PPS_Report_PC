@@ -8,3 +8,4 @@ def timeit(func):
         print(f"{func.__name__} took {end - start:.4f}s")
         return result
     return wrapper
+

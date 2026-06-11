@@ -108,3 +108,11 @@ PPS_Report_PC/
 ## License
 
 MIT License
+
+
+## Build 
+```bash
+pip install pyinstaller
+Remove-Item -Recurse -Force build, dist
+pyinstaller build.spec
+```

@@ -2,7 +2,7 @@ from utils.utils import timeit
 @timeit
 def surface_area(
     pcd,
-    radii=(0.05, 0.07, 0.1),
+    radii=(0.1, 0.15),
     estimate_normals=True
 ) -> float:
     """
@@ -31,8 +31,7 @@ def surface_area(
         pcd = pcd.to_legacy()
     
 
-    pcd = pcd.voxel_down_sample(voxel_size=min(radii) / 1)
-
+    pcd = pcd.voxel_down_sample(voxel_size=min(radii) / 2)
 
     cl, ind = pcd.remove_radius_outlier(nb_points=8, radius=2*min(radii))
     pcd = pcd.select_by_index(ind)
