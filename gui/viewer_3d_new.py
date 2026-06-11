@@ -12,6 +12,7 @@ import time
 import numpy as np
 from typing import Optional, List, Dict
 
+from numpy.ma import count
 import vtk
 import pyvista as pv
 from pyvistaqt import QtInteractor
@@ -19,13 +20,17 @@ from pyvistaqt import QtInteractor
 from PyQt5.QtWidgets import QShortcut, QWidget, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QToolButton, QStyle, QToolTip, QInputDialog, QSizePolicy, QDialog, QDialogButtonBox, QLabel, QTextEdit, QColorDialog, QSpinBox, QLineEdit
 from PyQt5.QtGui import QColor, QCursor, QIcon, QKeySequence
 from PyQt5.QtCore import pyqtSignal, QObject, QTimer, QSize, Qt
-from .annotation.annotation_manager import AnnotationManager
+from gui.annotation.annotation_manager import AnnotationManager
 from gui.annotation.text_annotation import TextAnnotation
 from gui.annotation.line_annotation import LineAnnotation
 from gui.annotation.delete_annotation import DeleteAnnotation
 from gui.annotation.move_annotation import MoveAnnotation
+from utils.path_helper import resource_path
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+if not getattr(sys, 'frozen', False):
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.layer_manager import Layer
 
@@ -38,50 +43,50 @@ class ViewerSignals(QObject):
     annotation_added   = pyqtSignal(str, object)
 
 
-class TextAnnotationDialog(QDialog):
-    def __init__(self, parent=None, initial_text="", initial_color=QColor(0, 0, 0), initial_size=14):
-        super().__init__(parent)
-        self.setWindowTitle("Text Annotation")
-        self.setModal(True)
-        self.resize(420, 320)
+# class TextAnnotationDialog(QDialog):
+#     def __init__(self, parent=None, initial_text="", initial_color=QColor(0, 0, 0), initial_size=14):
+#         super().__init__(parent)
+#         self.setWindowTitle("Text Annotation")
+#         self.setModal(True)
+#         self.resize(420, 320)
 
-        self._color = initial_color
+#         self._color = initial_color
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(10)
+#         layout = QVBoxLayout(self)
+#         layout.setContentsMargins(12, 12, 12, 12)
+#         layout.setSpacing(10)
 
-        label = QLabel("Enter annotation text:")
-        layout.addWidget(label)
+#         label = QLabel("Enter annotation text:")
+#         layout.addWidget(label)
 
-        self.text_edit = QTextEdit(self)
-        self.text_edit.setPlainText(initial_text)
-        self.text_edit.setFixedHeight(160)
-        layout.addWidget(self.text_edit)
+#         self.text_edit = QTextEdit(self)
+#         self.text_edit.setPlainText(initial_text)
+#         self.text_edit.setFixedHeight(160)
+#         layout.addWidget(self.text_edit)
 
-        layout.addWidget(QLabel("Preview:"))
-        self.preview = QLabel(self)
-        self.preview.setWordWrap(True)
-        self.preview.setMinimumHeight(70)
-        self.preview.setStyleSheet("border: 1px solid #bbb; padding: 8px; background: #fff;")
-        layout.addWidget(self.preview)
+#         layout.addWidget(QLabel("Preview:"))
+#         self.preview = QLabel(self)
+#         self.preview.setWordWrap(True)
+#         self.preview.setMinimumHeight(70)
+#         self.preview.setStyleSheet("border: 1px solid #bbb; padding: 8px; background: #fff;")
+#         layout.addWidget(self.preview)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+#         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
+#         buttons.accepted.connect(self.accept)
+#         buttons.rejected.connect(self.reject)
+#         layout.addWidget(buttons)
 
-        self.text_edit.textChanged.connect(self._update_preview)
-        self._update_preview()
+#         self.text_edit.textChanged.connect(self._update_preview)
+#         self._update_preview()
 
-    def _update_preview(self):
-        text = self.text_edit.toPlainText().strip() or "Sample text"
-        self.preview.setText(text)
+#     def _update_preview(self):
+#         text = self.text_edit.toPlainText().strip() or "Sample text"
+#         self.preview.setText(text)
 
-    def properties(self):
-        return {
-            "text": self.text_edit.toPlainText().strip(),
-        }
+#     def properties(self):
+#         return {
+#             "text": self.text_edit.toPlainText().strip(),
+#         }
 
 
 # ============================================================ VTK polygon picker
@@ -439,7 +444,7 @@ class PointCloudViewer(QWidget):
 
         self.btn_add_text = QToolButton()
         self.btn_add_text.setText("Text")
-        self.btn_add_text.setIcon(QIcon("gui\icons\icons8-text-48.png"))
+        self.btn_add_text.setIcon(QIcon(resource_path("gui\icons\icons8-text-48.png")))
         self.btn_add_text.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         self.btn_add_text.setIconSize(QSize(32, 32))
         self.btn_add_text.setCheckable(True)
@@ -452,7 +457,7 @@ class PointCloudViewer(QWidget):
 
         self.btn_add_line = QToolButton()
         self.btn_add_line.setText("Line")
-        self.btn_add_line.setIcon(QIcon("gui\icons\icons8-note-60.png"))
+        self.btn_add_line.setIcon(QIcon(resource_path("gui\icons\icons8-note-60.png")))
         self.btn_add_line.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         self.btn_add_line.setIconSize(QSize(35, 34))
         self.btn_add_line.setCheckable(True)
@@ -464,7 +469,7 @@ class PointCloudViewer(QWidget):
 
         self.btn_move_annot = QToolButton()
         self.btn_move_annot.setText("Move")
-        self.btn_move_annot.setIcon(QIcon("gui\icons\icons8-move-48.png"))
+        self.btn_move_annot.setIcon(QIcon(resource_path("gui\icons\icons8-move-48.png")))
         self.btn_move_annot.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         self.btn_move_annot.setCheckable(True)
         self.btn_move_annot.setIconSize(QSize(32, 32))
@@ -477,7 +482,7 @@ class PointCloudViewer(QWidget):
 
         self.btn_delete_annot = QToolButton()
         self.btn_delete_annot.setText("Delete")
-        self.btn_delete_annot.setIcon(QIcon("gui\icons\icons8-delete-48.png"))
+        self.btn_delete_annot.setIcon(QIcon(resource_path("gui\icons\icons8-delete-48.png")))
         self.btn_delete_annot.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         self.btn_delete_annot.setCheckable(True)
         self.btn_delete_annot.setIconSize(QSize(32, 32))
@@ -582,7 +587,12 @@ class PointCloudViewer(QWidget):
             btn.setEnabled(enabled)
 
     def _delete_annotation_by_layer(self, layer_name: str):
-        to_remove = [ann for ann in self._annotations if ann['layer_name'] == layer_name]
+        
+        if layer_name == "all" or layer_name is None or layer_name == "":
+            to_remove = self._annotations[:]
+        else:
+            to_remove = [ann for ann in self._annotations if ann['layer_name'] == layer_name]
+
         for ann in to_remove:
             actor = ann['annotation']['actor']
             if isinstance(actor, dict):
@@ -605,25 +615,26 @@ class PointCloudViewer(QWidget):
         self._layers = layers
 
     # ------------------------------------------------------------------ add / remove
-    def assign_colors(self, layer: Layer) -> np.ndarray:
+    def assign_colors(self, layer: Layer,
+                      color1=np.array([1.0, 0.0, 0.0], dtype=np.float32),
+                      color2=np.array([0.0, 1.0, 0.0], dtype=np.float32),
+                      color3=np.array([0.0, 0.0, 1.0], dtype=np.float32),
+                      color4=np.array([0.0, 0.0, 1.0], dtype=np.float32)) -> np.ndarray:
         """
         Assign colors to points based on thickness thresholds.
         Override this method to customize color logic.
+        light_blue is used for distances >= 150 to visually separate very thick points.
+        np.array([0.68, 0.85, 0.9], dtype=np.float32)
         """
         min_target = self.min_target
         max_target = self.max_target
         distances = layer.distances
         colors = np.zeros((len(distances), 3), dtype=np.float32)
 
-        red = np.array([1.0, 0.0, 0.0], dtype=np.float32)
-        green = np.array([0.0, 1.0, 0.0], dtype=np.float32)
-        blue = np.array([0.0, 0.0, 1.0], dtype=np.float32)
-        light_blue = np.array([0.68, 0.85, 0.9], dtype=np.float32)
-
-        colors[distances < min_target] = red
-        colors[(distances >= min_target) & (distances <= max_target)] = green
-        colors[(distances > max_target) & (distances < 150)] = blue
-        colors[distances >= 150] = light_blue
+        colors[distances < min_target] = color1 # Red
+        colors[(distances >= min_target) & (distances <= max_target)] = color2 # Green
+        colors[(distances > max_target) & (distances < 150)] = color3 # Blue
+        colors[distances >= 150] = color4 # Light Blue for very thick points
 
         return colors
 
@@ -951,7 +962,6 @@ class PointCloudViewer(QWidget):
 
 
     def _update_line_text_preview(self, annotation):
-
         self._clear_annotation_preview()
         if annotation is None:
             return
@@ -964,6 +974,8 @@ class PointCloudViewer(QWidget):
         self._annotation_preview_actors = list(actors.values())
 
         self.plotter.ren_win.Render()
+
+
             
     def _on_text_tool_clicked(self):
         if not self._annotation_layer_name:
@@ -973,13 +985,13 @@ class PointCloudViewer(QWidget):
         self.enable_annotation_mode('text')
         QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Click the view to place the text annotation.")
 
-    def _on_arrow_tool_clicked(self):
-        if not self._annotation_layer_name:
-            QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Select a layer before annotating.")
-            self._reset_toolbar_buttons()
-            return
-        self.enable_annotation_mode('arrow')
-        QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Click the first endpoint, then click the second endpoint for the arrow. After that, click to place label text.")
+    # def _on_arrow_tool_clicked(self):
+    #     if not self._annotation_layer_name:
+    #         QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Select a layer before annotating.")
+    #         self._reset_toolbar_buttons()
+    #         return
+    #     self.enable_annotation_mode('arrow')
+    #     QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Click the first endpoint, then click the second endpoint for the arrow. After that, click to place label text.")
 
     def _on_line_tool_clicked(self):
         if not self._annotation_layer_name:
@@ -1017,116 +1029,119 @@ class PointCloudViewer(QWidget):
             pass
 
 
-    def _handle_line_click(self, x: int, y: int):
-        if self._annotation_arrow_start is None:
-            self._annotation_arrow_start = (int(x), int(y))
-            QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Click the end point of the leader line.")
-            return
-        style = self._current_annotation_style()
-        annotation = {
-            "type": "line",
-            "text": "",
-            "color": style["color"],
-            "line_width": style["line_width"],
-            "font_size": style["font_size"],
-            "position": self._annotation_arrow_start,
-            "end_position": (int(x), int(y)),
-        }
-        self._clear_annotation_preview()
-        actor = self._create_line_actor(annotation)
-        annotation["actor"] = actor
-        self._annotations.append({
-            "layer_name": self._annotation_layer_name,
-            "annotation": annotation,
-        })
-        self.signals.annotation_added.emit(self._annotation_layer_name, {
-            "action": "add",
-            "annotation": annotation,
-        })
-        self._annotation_arrow_start = None
-        self._end_annotation_mode()
+    # def _handle_line_click(self, x: int, y: int):
+    #     if self._annotation_arrow_start is None:
+    #         self._annotation_arrow_start = (int(x), int(y))
+    #         QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Click the end point of the leader line.")
+    #         return
+    #     style = self._current_annotation_style()
+    #     annotation = {
+    #         "type": "line",
+    #         "text": "",
+    #         "color": style["color"],
+    #         "line_width": style["line_width"],
+    #         "font_size": style["font_size"],
+    #         "position": self._annotation_arrow_start,
+    #         "end_position": (int(x), int(y)),
+    #     }
+    #     self._clear_annotation_preview()
+    #     actor = self._create_line_actor(annotation)
+    #     annotation["actor"] = actor
+    #     self._annotations.append({
+    #         "layer_name": self._annotation_layer_name,
+    #         "annotation": annotation,
+    #     })
+    #     self.signals.annotation_added.emit(self._annotation_layer_name, {
+    #         "action": "add",
+    #         "annotation": annotation,
+    #     })
+    #     self._annotation_arrow_start = None
+    #     self._end_annotation_mode()
 
 
-    def _handle_move_click(self, x: int, y: int):
-        if self._annotation_move_target is None:
-            target = self._find_annotation_at_position(x, y)
-            if target is None:
-                QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Click an annotation to move it.")
-                return
-            self._annotation_move_target = target
-            self._annotation_dragging = True
-            self._annotation_drag_last = (int(x), int(y))
-            self._highlight_annotation(target)
-            QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Drag the annotation and release the mouse to finish.")
-            return
-        QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Drag the annotation and release the mouse to finish.")
+    # def _handle_move_click(self, x: int, y: int):
+    #     if self._annotation_move_target is None:
+    #         target = self._find_annotation_at_position(x, y)
+    #         if target is None:
+    #             QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Click an annotation to move it.")
+    #             return
+    #         self._annotation_move_target = target
+    #         self._annotation_dragging = True
+    #         self._annotation_drag_last = (int(x), int(y))
+    #         self._highlight_annotation(target)
+    #         QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Drag the annotation and release the mouse to finish.")
+    #         return
+    #     QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Drag the annotation and release the mouse to finish.")
 
-    def _handle_delete_click(self, x: int, y: int):
-        target = self._find_annotation_at_position(x, y)
-        if target is None:
-            QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Click an annotation to delete it.")
-            return
-        annotation = target["annotation"]
-        self._remove_annotation(target)
-        self.signals.annotation_added.emit(self._annotation_layer_name, {
-            "action": "delete",
-            "annotation": annotation,
-        })
-        self._end_annotation_mode()
+    # def _handle_delete_click(self, x: int, y: int):
+    #     target = self._find_annotation_at_position(x, y)
+    #     if target is None:
+    #         QToolTip.showText(self.mapToGlobal(self.cursor().pos()), "Click an annotation to delete it.")
+    #         return
+    #     annotation = target["annotation"]
+    #     self._remove_annotation(target)
+    #     self.signals.annotation_added.emit(self._annotation_layer_name, {
+    #         "action": "delete",
+    #         "annotation": annotation,
+    #     })
+    #     self._end_annotation_mode()
 
-    def _find_annotation_at_position(self, x: int, y: int):
-        def _distance_to_segment(px, py, x1, y1, x2, y2):
-            dx = x2 - x1
-            dy = y2 - y1
-            if dx == 0 and dy == 0:
-                return np.hypot(px - x1, py - y1)
-            t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)
-            t = max(0.0, min(1.0, t))
-            proj_x = x1 + t * dx
-            proj_y = y1 + t * dy
-            return np.hypot(px - proj_x, py - proj_y)
+    # def _find_annotation_at_position(self, x: int, y: int):
+   
+    #     def _distance_to_segment(px, py, x1, y1, x2, y2):
+    #         dx = x2 - x1
+    #         dy = y2 - y1
+    #         if dx == 0 and dy == 0:
+    #             return np.hypot(px - x1, py - y1)
+    #         t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)
+    #         t = max(0.0, min(1.0, t))
+    #         proj_x = x1 + t * dx
+    #         proj_y = y1 + t * dy
+    #         return np.hypot(px - proj_x, py - proj_y)
 
-        for entry in reversed(self._annotations):
-            ann = entry["annotation"]
-            if ann["type"] == "text":
-                px, py = ann["position"]
-                if (x - px) ** 2 + (y - py) ** 2 < 900:
-                    return entry
-            elif ann["type"] == "arrow":
-                sx, sy = ann["position"]
-                ex, ey = ann["end_position"]
-                if _distance_to_segment(x, y, sx, sy, ex, ey) < 18:
-                    return entry
-                if (x - sx) ** 2 + (y - sy) ** 2 < 900:
-                    return entry
-                if (x - ex) ** 2 + (y - ey) ** 2 < 900:
-                    return entry
-                if ann.get("label_position") is not None:
-                    lx, ly = ann["label_position"]
-                    if (x - lx) ** 2 + (y - ly) ** 2 < 900:
-                        return entry
-        return None
+    #     for entry in reversed(self._annotations):
+    #         ann = entry["annotation"]
+    #         if ann["type"] == "text":
+    #             px, py = ann["position"]
+    #             if (x - px) ** 2 + (y - py) ** 2 < 900:
+    #                 return entry
+    #         elif ann["type"] == "arrow":
+    #             sx, sy = ann["position"]
+    #             ex, ey = ann["end_position"]
+    #             if _distance_to_segment(x, y, sx, sy, ex, ey) < 18:
+    #                 return entry
+    #             if (x - sx) ** 2 + (y - sy) ** 2 < 900:
+    #                 return entry
+    #             if (x - ex) ** 2 + (y - ey) ** 2 < 900:
+    #                 return entry
+    #             if ann.get("label_position") is not None:
+    #                 lx, ly = ann["label_position"]
+    #                 if (x - lx) ** 2 + (y - ly) ** 2 < 900:
+    #                     return entry
+    #     return None
 
-    def _move_annotation(self, entry, x: int, y: int):
-        annotation = entry["annotation"]
-        if annotation["type"] == "text":
-            annotation["position"] = (int(x), int(y))
-            self._safe_remove_actor(annotation, "actor")
-            annotation["actor"] = self._create_text_actor(annotation)
-        else:
-            start = annotation["position"]
-            end = annotation["end_position"]
-            dx = int(x) - start[0]
-            dy = int(y) - start[1]
-            annotation["position"] = (start[0] + dx, start[1] + dy)
-            annotation["end_position"] = (end[0] + dx, end[1] + dy)
-            if annotation.get("label_position") is not None:
-                lx, ly = annotation["label_position"]
-                annotation["label_position"] = (lx + dx, ly + dy)
-            self._safe_remove_actor(annotation, "actor")
-            self._safe_remove_actor(annotation, "text_actor")
-            annotation["actor"] = self._create_arrow_actor(annotation)
-        self.plotter.ren_win.Render()
+    # def _move_annotation(self, entry, x: int, y: int):
+
+    #     annotation = entry["annotation"]
+    #     if annotation["type"] == "text":
+    #         annotation["position"] = (int(x), int(y))
+    #         self._safe_remove_actor(annotation, "actor")
+    #         annotation["actor"] = self._create_text_actor(annotation)
+    #     else:
+    #         start = annotation["position"]
+    #         end = annotation["end_position"]
+    #         dx = int(x) - start[0]
+    #         dy = int(y) - start[1]
+    #         annotation["position"] = (start[0] + dx, start[1] + dy)
+    #         annotation["end_position"] = (end[0] + dx, end[1] + dy)
+    #         if annotation.get("label_position") is not None:
+    #             lx, ly = annotation["label_position"]
+    #             annotation["label_position"] = (lx + dx, ly + dy)
+    #         # self._safe_remove_actor(annotation, "actor")
+    #         self._safe_remove_actor(annotation, "text_actor")
+    #         self._safe_remove_actor(annotation, "line_actor")
+    #         annotation["actor"] = self._create_arrow_actor(annotation)
+    #     self.plotter.ren_win.Render()
 
     def _drag_annotation(self, entry, x: int, y: int):
         if self._annotation_drag_last is None:

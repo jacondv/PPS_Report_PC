@@ -43,19 +43,17 @@ class MoveAnnotation(Annotation):
         if ann.get("type") == "text":
             actor = ann.get("actor")
             actor.SetPosition(dx, dy)
-
+            
         if ann.get("type") == "line_text":
-
-            anotation = ann
-            points = anotation["points"]
+            actor = ann.get("actor")
+            annotation = ann
+            points = annotation["points"]
             for i, p in enumerate(points):
                 points[i] = (p[0] + dx, p[1] + dy)
-
             
-            
-            anotation["points"] = points
+            annotation["points"] = points
 
-            self.viewer._update_line_text_preview(anotation)
+            self.viewer._update_line_text_preview(annotation)
 
 
 
@@ -110,6 +108,9 @@ class MoveAnnotation(Annotation):
             actor.SetPosition(x,y)
 
         if ann.get("type") == "line_text":
+            actors = ann.get("actor")
+            actors["line_actor"].SetPosition(x,y)
+            actors["text_actor"].SetPosition(x,y)
             self._move_annotation(ann,x,y)
 
     # =========================

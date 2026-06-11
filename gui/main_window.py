@@ -22,7 +22,11 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize, QPoint, QSettings
 from PyQt5.QtGui import QFont, QColor, QPixmap, QIcon
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+if not getattr(sys, 'frozen', False):
+    # Chỉ chạy khi là source, không phải exe
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 from gui.help import HotkeysDialog
 from gui.viewer_3d_new import PointCloudViewer
@@ -265,11 +269,11 @@ class MainWindow(QMainWindow):
         self.list_layers.itemChanged.connect(self._on_layer_item_changed)
         self.list_layers.currentItemChanged.connect(self._on_layer_selected)
         layer_layout.addWidget(self.list_layers)
-
-        self.lbl_current_layer = QLabel("No layer selected")
+        self.lbl_current_layer = QLabel("")
         self.lbl_current_layer.setStyleSheet("color:#2c5282; font-weight:bold; font-size:14px;")
         layer_layout.addWidget(self.lbl_current_layer)
         lay.addWidget(layer_box)
+
 
 
         action_box = QGroupBox("Actions")
@@ -418,7 +422,11 @@ class MainWindow(QMainWindow):
     # ================================================================== file
     def _on_open_file(self):
         fp, _ = QFileDialog.getOpenFileName(
-            self, "Open Point Cloud File", "", "PLY Files (*.ply);;All Files (*)")
+            self, "Open Point Cloud File", "",
+            "Compare Files (*compare*.ply);;"
+            "PLY Files (*.ply);;"
+            "All Files (*)"
+        )
         if fp:
             self._load_file(fp)
 
@@ -549,14 +557,16 @@ class MainWindow(QMainWindow):
         self.viewer.set_layer_visible(name, visible)
 
 
+
+
     def _on_layer_selected(self, current: QListWidgetItem, previous: QListWidgetItem):
-        if current is None:
-            self.lbl_current_layer.setText("No layer selected")
-            return
+  
         self.viewer._set_tool_buttons_enabled(True)
         name = current.data(Qt.UserRole)
-        self.lbl_current_layer.setText(f"Current Layer: {name}")
         self.viewer.set_annotation_layer(name)
+
+
+
 
     # ------------------------------------------------------------------ layer context menu
     def _on_layer_context_menu(self, pos: QPoint):
@@ -619,6 +629,7 @@ class MainWindow(QMainWindow):
         item.setData(Qt.UserRole, new_name)
 
     def _delete_layer(self, name: str):
+        self.viewer._delete_annotation_by_layer(name)
         self.layer_manager.remove(name)
         self.viewer.remove_layer(name)
         self.viewer.sync_layers(self.layer_manager.layers)
@@ -626,7 +637,7 @@ class MainWindow(QMainWindow):
         if item:
             self.list_layers.takeItem(self.list_layers.row(item))
 
-        self.viewer._delete_annotation_by_layer(name)
+        
 
     # ================================================================== selection
     def _on_polygon_toggled(self, checked: bool):
@@ -701,10 +712,15 @@ class MainWindow(QMainWindow):
 
     # ================================================================== calculation
     def _on_calculate(self):
-        selected_items = self.list_layers.selectedItems()
-        if not selected_items:
+        # selected_items = self.list_layers.selectedItems()
+        selected_items = [
+            self.list_layers.item(i)
+            for i in range(self.list_layers.count())
+            if self.list_layers.item(i).checkState() == Qt.Checked
+        ]
+        if not selected_items or len(selected_items) == 0:
             QMessageBox.warning(self, "Warning",
-                                "Please select one or more layers!")
+                                "Please check one or more layers!")
             return
         
         # Collect points and distances from all selected layers
@@ -714,7 +730,8 @@ class MainWindow(QMainWindow):
         for item in selected_items:
             layer_name = item.data(Qt.UserRole)
             layer = self.layer_manager.get(layer_name)
-            if layer is None:
+            # only include visible layers with points to caculate
+            if layer is None or layer.visible == False:
                 continue
             if len(layer.points) > 0:
                 all_points.append(layer.points)
@@ -887,9 +904,13 @@ class MainWindow(QMainWindow):
         # =========================
         # 1. Default filename
         # =========================
+        _segment_str = ""
+        for _layer in visible_layers:
+            _segment_str += f"_{_layer.name}" if _layer.name and (self.project_info.job_number not in _layer.name) else ""
+        
         default = (
-            f"report_{self.project_info.project_name}_"
-            f"{self.project_info.job_number}{suffix}.pdf"
+            f"{self.project_info.project_name}_"
+            f"{self.project_info.job_number}_{self.project_info.scan_time}_{self.project_info.segment_name}{_segment_str}{suffix}.pdf"
         )
 
         fp, _ = QFileDialog.getSaveFileName(

@@ -141,60 +141,91 @@ def calculate_area_and_volume(*args, method: str = "bpa", target_min=None) -> Ca
             area_reached_target_m2=0
         )
 
-    # Filter out invalid distance values
-    valid_mask = ~np.isnan(distances) & ~np.isinf(distances)
-    valid_distances = distances[valid_mask]
+    # # Filter out invalid distance values
+    # valid_mask = ~np.isnan(distances) & ~np.isinf(distances)  # Assuming thickness cannot be negative
+    # valid_distances = distances[valid_mask]
 
-    if len(valid_distances) == 0:
-        valid_distances = np.array([0])
+    # if len(valid_distances) == 0:
+    #     valid_distances = np.array([0])
 
-    # Calculate surface area using BPA only.
-    try:
-        pcd = _to_open3d_pointcloud(cloud, points)
-        surface_area = bpa_surface_area(pcd)
-    except Exception as exc:
-        raise RuntimeError(f"BPA surface estimation failed: {exc}") from exc
+    # # Calculate surface area using BPA only.
+    # try:
+    #     pcd = _to_open3d_pointcloud(cloud, points)
+    #     surface_area = bpa_surface_area(pcd,radii=(0.1, 0.15))
+    # except Exception as exc:
+    #     raise RuntimeError(f"BPA surface estimation failed: {exc}") from exc
 
-    # Convert to square meters if needed (assuming input is in meters)
-    surface_area_m2 = surface_area
+    # # Convert to square meters if needed (assuming input is in meters)
+    # surface_area_m2 = surface_area
 
-    # Calculate mean thickness
-    mean_thickness_mm = float(np.mean(valid_distances))
-    mean_thickness_m = mean_thickness_mm / 1000.0  # Convert mm to m
+    # # Calculate mean thickness
+    # # mean_thickness_mm = float(np.mean(valid_distances))
+    # # mean_thickness_m = mean_thickness_mm / 1000.0  # Convert mm to m
 
-    # Calculate volume: Area × Thickness
-    volume_m3 = surface_area_m2 * mean_thickness_m
+    # # Caculate area where thickness reaches 20mm. We only get this area to caculate volume, other areas are ignored.
+    # mask_distance_20 = (np.abs(distances) > 20) & (np.abs(distances) < 1000)
+    # filtered_points_20 = points[mask_distance_20]
+    # pcd_filtered_20 = _to_open3d_pointcloud(cloud, filtered_points_20)
+    # surface_area_above_20_m2 = bpa_surface_area(pcd_filtered_20, radii=(0.1, 0.15))
+
+    #     # Calculate mean thickness
+    # mean_thickness_mm = float(np.mean(distances[mask_distance_20]))
+    # mean_thickness_m = mean_thickness_mm / 1000.0  # Convert mm to m
+
+    # # Calculate volume: Area × Thickness
+    # volume_m3 = surface_area_above_20_m2 * mean_thickness_m
 
 
-    # ============================================================
-    # NEW: Area reached target
-    # ============================================================
-    area_reached_target = 0.0
+    # # ============================================================
+    # # NEW: Area reached target
+    # # ============================================================
+    # area_reached_target = 0.0
     
-    if target_min is not None:
-        mask = valid_mask & (distances >= target_min)
+    # if target_min is not None:
+    #     mask = valid_mask & (distances >= target_min)
 
-        num_valid_target = np.sum(mask)
+    #     num_valid_target = np.sum(mask)
 
-        # tránh BPA nếu quá ít điểm (tối ưu)
-        if num_valid_target > 50:
-            filtered_points = points[mask]
+    #     # tránh BPA nếu quá ít điểm (tối ưu)
+    #     if num_valid_target > 50:
+    #         filtered_points = points[mask]
 
-            try:
-                pcd_filtered = _to_open3d_pointcloud(None, filtered_points)
-                area_reached_target = bpa_surface_area(pcd_filtered)
-            except Exception:
-                area_reached_target = 0.0
+    #         try:
+    #             pcd_filtered = _to_open3d_pointcloud(None, filtered_points)
+    #             area_reached_target = bpa_surface_area(pcd_filtered)
+    #         except Exception:
+    #             area_reached_target = 0.0
+
+
+    distances[np.abs(distances) < 12] = 0 # set thickness < 12mm to 0, consider as no damage (tùy chỉnh ngưỡng này)
+    distances[np.abs(distances) > 500] = 0 # set thickness > 500mm to 0, consider as noise
+
+    _min_reached_thickness_mm = target_min if target_min is not None else 20
+    _mask_reached_target = distances > _min_reached_thickness_mm
+
+    _reached_points = points[_mask_reached_target]
+    _reached_distances = distances[_mask_reached_target]
+    if len(_reached_points) < 100:  # ngưỡng tùy chọn
+        reached_area = 0.0
+    else:
+        reached_pcd = _to_open3d_pointcloud(None, _reached_points)
+        reached_area = bpa_surface_area(reached_pcd, radii=(0.03, 0.05))  # m²
+
+    avg_thickness_mm = _reached_distances.mean() if len(_reached_distances) > 0 else 0
+
+    pcd = _to_open3d_pointcloud(cloud, points)
+    total_area_m2 = bpa_surface_area(pcd,radii=(0.1, 0.15))
+    volume_m3 = reached_area * avg_thickness_mm/1000
 
     return CalculationResult(
-        surface_area_m2=surface_area_m2,
+        surface_area_m2=total_area_m2,
         volume_m3=volume_m3,
-        mean_thickness_mm=mean_thickness_mm,
-        min_thickness_mm=float(np.min(valid_distances)),
-        max_thickness_mm=float(np.max(valid_distances)),
-        std_thickness_mm=float(np.std(valid_distances)),
+        mean_thickness_mm=avg_thickness_mm,
+        min_thickness_mm=float(np.min(_reached_distances)),
+        max_thickness_mm=float(np.max(_reached_distances)),
+        std_thickness_mm=float(np.std(_reached_distances)),
         num_points=len(points),
-        area_reached_target_m2=area_reached_target
+        area_reached_target_m2=reached_area
     )
 
 

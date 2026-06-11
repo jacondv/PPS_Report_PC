@@ -4,7 +4,9 @@ import sys
 import os
 
 # 👉 thêm src vào path để import
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
+
+if not getattr(sys, 'frozen', False):
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
 from core.filename_parser import parse_filename
 
