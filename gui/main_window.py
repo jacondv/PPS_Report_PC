@@ -516,7 +516,7 @@ class MainWindow(QMainWindow):
     def _layer_display_text(self, layer: Layer) -> str:
         count = len(getattr(layer, "annotations", []))
         note_flag = f" 📝({count})" if count else ""
-        return f"{layer.name}{note_flag}  ({layer.num_points:,} điểm)"
+        return f"{layer.name}{note_flag}  ({layer.num_points:,} points)"
 
     def _layer_tooltip(self, layer: Layer) -> str:
         annotations = getattr(layer, "annotations", [])
@@ -711,7 +711,7 @@ class MainWindow(QMainWindow):
         self.list_layers.setCurrentItem(item)
         self.viewer.clear_selection()
         self._reset_selection()
-        self.statusbar.showMessage(f"Đã tạo {layer.name} ({layer.num_points:,} điểm)")
+        self.statusbar.showMessage(f"Created {layer.name} ({layer.num_points:,} points)")
 
     # ================================================================== calculation
     def _on_calculate(self):
