@@ -24,7 +24,9 @@ class HTMLPDFGenerator:
         html = self._render_template(ctx)
 
         wkhtmltopdf_path = self._find_wkhtmltopdf()
-        config = pdfkit.configuration(wkhtmltopdf=wkhtmltopdf_path)
+        config = pdfkit.configuration(
+            wkhtmltopdf=wkhtmltopdf_path, environ=self._subprocess_environ()
+        )
 
         with tempfile.NamedTemporaryFile('w', suffix='.html', delete=False, encoding='utf-8') as html_file:
             html_file.write(html)
@@ -238,6 +240,20 @@ class HTMLPDFGenerator:
         
         path = Path(path).resolve().as_uri()
         return path
+
+    def _subprocess_environ(self):
+        """Environment for the wkhtmltopdf subprocess, without the
+        QT_PLUGIN_PATH/QML2_IMPORT_PATH/QT_QPA_PLATFORM_PLUGIN_PATH vars
+        that PyInstaller's PySide6 runtime hook injects into this
+        process. wkhtmltopdf bundles its own (much older) static Qt
+        build; inheriting those vars makes it try to load PySide6's Qt
+        platform plugins and fail — this only happens in the frozen
+        exe, since the runtime hook only runs there.
+        """
+        env = dict(os.environ)
+        for key in ('QT_PLUGIN_PATH', 'QML2_IMPORT_PATH', 'QT_QPA_PLATFORM_PLUGIN_PATH'):
+            env.pop(key, None)
+        return env
 
     def _find_wkhtmltopdf(self):
         from shutil import which
