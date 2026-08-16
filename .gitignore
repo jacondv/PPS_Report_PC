@@ -1,22 +1,10 @@
-# v0 sandbox internal files
-__v0_runtime_loader.js
-__v0_devtools.tsx
-__v0_jsx-dev-runtime.ts
-.snowflake/
-.v0-trash/
-.vercel/
-next.user-config.*
-
-# Environment variables
+# ======================
+# Environment
+# ======================
 .env*.local
-
-# Common ignores
-node_modules
-.next/
-.DS_Store
 .venv/
 venv/
-
+.DS_Store
 
 # ======================
 # Python cache
@@ -28,12 +16,15 @@ __pycache__/
 *.pytest_cache/
 .mypy_cache/
 .ruff_cache/
+*.egg-info/
 
 # ======================
 # FILES
 # ======================
 *.pdf
 *.ply
+*.ppsproj.npz
+
 # ======================
 # IDE / Editor
 # ======================
@@ -42,7 +33,7 @@ __pycache__/
 *.swp
 
 # ======================
-# AI / ML heavy files (IMPORTANT)
+# Bundled runtime assets (large, not version-controlled)
 # ======================
 datasets/
 data/
@@ -75,8 +66,7 @@ temp/
 .ipynb_checkpoints/
 
 # ======================
-# Node (nếu project mixed)
+# PyInstaller build artifacts
 # ======================
-node_modules/
 dist/
 build/
