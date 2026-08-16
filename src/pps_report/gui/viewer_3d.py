@@ -19,10 +19,10 @@ import pyvista as pv
 from pyvistaqt import QtInteractor
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QFrame,
-    QToolButton, QStyle, QToolTip, QInputDialog,
+    QWidget, QVBoxLayout, QHBoxLayout, QFrame,
+    QToolButton, QPushButton, QToolTip, QInputDialog,
 )
-from PySide6.QtGui import QColor, QCursor, QIcon, QKeySequence, QShortcut
+from PySide6.QtGui import QColor, QCursor, QKeySequence, QShortcut
 from PySide6.QtCore import Signal, QObject, QTimer, QSize, Qt
 
 from pps_report.gui.vtk_polygon_picker import VTKPolygonPicker
@@ -34,7 +34,6 @@ from pps_report.gui.annotation.delete_annotation import DeleteAnnotation
 from pps_report.gui.annotation.move_annotation import MoveAnnotation
 from pps_report.gui.annotation.edit_style_annotation import EditStyleAnnotation
 from pps_report.gui.annotation.style_dialog import AnnotationEditDialog
-from pps_report.utils.path_helper import resource_path
 from pps_report.core.layer_manager import Layer
 
 logger = logging.getLogger(__name__)
@@ -106,6 +105,7 @@ class PointCloudViewer(QWidget):
 
         self.plotter = QtInteractor(frame)
         fl.addWidget(self.plotter.interactor)
+        fl.addWidget(self._build_view_angle_bar())
         layout.addWidget(frame)
 
         self.plotter.set_background('white')
@@ -141,62 +141,62 @@ class PointCloudViewer(QWidget):
         self.annotation_manager.activate(None)
 
     def _build_tool_buttons(self):
-        icon_size = QSize(20, 20)
+        from pps_report.gui.lucide_icons import load_icon
+        from pps_report.gui.theme import get_colors
 
-        def make_button(text, icon, tooltip, checkable, shortcut=None):
+        icon_size = QSize(20, 20)
+        icon_color = get_colors()["text_main"]
+        self._icon_recipes = {}
+
+        def make_button(text, icon_name, tooltip, checkable, shortcut=None):
             btn = QToolButton()
             btn.setText(text)
-            btn.setIcon(icon)
+            btn.setIcon(load_icon(icon_name, icon_color))
             btn.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
             btn.setIconSize(icon_size)
             btn.setCheckable(checkable)
             btn.setToolTip(tooltip + (f" ({shortcut})" if shortcut else ""))
             if shortcut:
                 QShortcut(QKeySequence(shortcut), self).activated.connect(btn.click)
+            self._icon_recipes[btn] = icon_name
             return btn
 
         self.btn_add_text = make_button(
-            "Text", QIcon(resource_path(os.path.join("gui", "icons", "icons8-text-48.png"))),
-            "Add a text annotation", True, "1")
+            "Text", "type", "Add a text annotation", True, "T")
         self.btn_add_text.clicked.connect(lambda: self.annotation_manager.activate("text"))
 
         self.btn_add_line = make_button(
-            "Line", QIcon(resource_path(os.path.join("gui", "icons", "icons8-note-60.png"))),
-            "Add a leader-line annotation", True, "2")
+            "Line", "minus", "Add a leader-line annotation", True, "L")
         self.btn_add_line.clicked.connect(lambda: self.annotation_manager.activate("line"))
 
         self.btn_move_annot = make_button(
-            "Move", QIcon(resource_path(os.path.join("gui", "icons", "icons8-move-48.png"))),
-            "Move an existing annotation", True, "3")
+            "Move", "move", "Move an existing annotation", True, "M")
         self.btn_move_annot.clicked.connect(lambda: self.annotation_manager.activate("move"))
 
         self.btn_delete_annot = make_button(
-            "Delete", QIcon(resource_path(os.path.join("gui", "icons", "icons8-delete-48.png"))),
-            "Delete an existing annotation", True, "4")
+            "Delete", "x-circle", "Delete an existing annotation", True, "D")
         self.btn_delete_annot.clicked.connect(lambda: self.annotation_manager.activate("delete"))
 
         self.btn_edit_style = make_button(
-            "Style", self.style().standardIcon(QStyle.SP_FileDialogDetailedView),
-            "Click an annotation to edit its text/color/font/line width", True, "5")
+            "Style", "sliders-horizontal",
+            "Click an annotation to edit its text/color/font/line width", True)
         self.btn_edit_style.clicked.connect(lambda: self.annotation_manager.activate("style"))
 
         self.btn_delete_segment = make_button(
-            "Delete Seg.", self.style().standardIcon(QStyle.SP_TrashIcon),
+            "Delete Seg.", "trash-2",
             "Delete the segment selected in Layer Manager", False)
         self.btn_delete_segment.clicked.connect(self.signals.delete_segment_requested.emit)
 
         self.btn_merge_segments = make_button(
-            "Merge", self.style().standardIcon(QStyle.SP_DialogApplyButton),
+            "Merge", "git-merge",
             "Merge the segments selected in Layer Manager into one", False)
         self.btn_merge_segments.clicked.connect(self.signals.merge_segments_requested.emit)
 
-        self.btn_undo = make_button(
-            "Undo", self.style().standardIcon(QStyle.SP_ArrowBack), "Undo", False, "Ctrl+Z")
+        self.btn_undo = make_button("Undo", "undo-2", "Undo", False, "Ctrl+Z")
         self.btn_undo.setEnabled(False)
         self.btn_undo.clicked.connect(self.signals.undo_requested.emit)
 
-        self.btn_redo = make_button(
-            "Redo", self.style().standardIcon(QStyle.SP_ArrowForward), "Redo", False, "Ctrl+Y")
+        self.btn_redo = make_button("Redo", "redo-2", "Redo", False, "Ctrl+Y")
         self.btn_redo.setEnabled(False)
         self.btn_redo.clicked.connect(self.signals.redo_requested.emit)
 
@@ -213,6 +213,42 @@ class PointCloudViewer(QWidget):
         self._annotation_font_family = "Arial"
         self._annotation_font_size = 14
         self._annotation_line_width = 2
+        self._annotation_bold = True
+        self._annotation_italic = False
+
+    def _build_view_angle_bar(self) -> QWidget:
+        """Compact docked strip of camera-view shortcuts (Top/Front/etc)."""
+        bar = QWidget()
+        bar.setObjectName("view_angle_bar")
+        bar.setStyleSheet("""
+            QWidget#view_angle_bar { background: transparent; }
+            QPushButton {
+                background: #ffffff; color: #1e293b;
+                border: 1px solid #cbd5e1; border-radius: 5px;
+                min-width: 30px; max-width: 40px; padding: 4px 2px;
+                font-size: 11px; font-weight: 600; text-align: center;
+            }
+            QPushButton:hover { background: #f1f5f9; border-color: #3b82f6; }
+        """)
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(8, 6, 8, 6)
+        row.setSpacing(6)
+        row.addStretch()
+        for label, tooltip, fn in [
+            ("T",   "Top view (1)",    self.view_top),
+            ("G",   "Bottom view (2)", self.view_bottom),
+            ("F",   "Front view (3)",  self.view_front),
+            ("B",   "Back view (4)",   self.view_back),
+            ("R",   "Right view (5)",  self.view_right),
+            ("L",   "Left view (6)",   self.view_left),
+            ("ISO", "Isometric view (7)", self.view_iso),
+        ]:
+            btn = QPushButton(label)
+            btn.setToolTip(tooltip)
+            btn.clicked.connect(fn)
+            row.addWidget(btn)
+        row.addStretch()
+        return bar
 
     def _setup_interactor_events(self):
         self._iren.AddObserver('LeftButtonPressEvent',   self._on_left_click)
@@ -326,6 +362,22 @@ class PointCloudViewer(QWidget):
         for layer in self._layers:
             self.add_layer(layer)
 
+    def set_theme(self, mode: str):
+        """Recolor toolbar icons for the given theme. The 3D canvas itself
+        always stays white regardless of Light/Dark mode (point-cloud
+        colors are calibrated against a white background)."""
+        self.plotter.set_background('white')
+        self.plotter.render()
+        self.refresh_icons(mode)
+
+    def refresh_icons(self, mode: str = None):
+        """Recolor toolbar icons to match the given (or current) theme."""
+        from pps_report.gui.lucide_icons import load_icon
+        from pps_report.gui.theme import get_colors
+        color = get_colors(mode)["text_main"]
+        for btn, name in self._icon_recipes.items():
+            btn.setIcon(load_icon(name, color))
+
     # ------------------------------------------------------------------ polygon mode
     def enable_polygon_mode(self):
         if not self._layers:
@@ -359,6 +411,8 @@ class PointCloudViewer(QWidget):
             "line_width":  self._annotation_line_width,
             "font_size":   self._annotation_font_size,
             "font_family": self._annotation_font_family,
+            "bold":        self._annotation_bold,
+            "italic":      self._annotation_italic,
         }
 
     def _remember_annotation_style(self, values: dict):
@@ -367,6 +421,8 @@ class PointCloudViewer(QWidget):
         self._annotation_font_family = values.get("font_family", self._annotation_font_family)
         self._annotation_font_size = values.get("font_size", self._annotation_font_size)
         self._annotation_line_width = values.get("line_width", self._annotation_line_width)
+        self._annotation_bold = values.get("bold", self._annotation_bold)
+        self._annotation_italic = values.get("italic", self._annotation_italic)
 
     @staticmethod
     def _set_font_family(text_property, family: str):
@@ -385,6 +441,10 @@ class PointCloudViewer(QWidget):
         ann["color"] = values["color"]
         ann["font_size"] = values["font_size"]
         ann["font_family"] = values["font_family"]
+        if "bold" in values:
+            ann["bold"] = values["bold"]
+        if "italic" in values:
+            ann["italic"] = values["italic"]
         if "line_width" in values:
             ann["line_width"] = values["line_width"]
         text_changed = "text" in values and values["text"] != ann.get("text")
@@ -403,6 +463,8 @@ class PointCloudViewer(QWidget):
             prop.SetFontSize(values["font_size"])
             prop.SetColor(*rgb)
             self._set_font_family(prop, values["font_family"])
+            prop.SetBold(bool(ann.get("bold", True)))
+            prop.SetItalic(bool(ann.get("italic", False)))
             if text_changed:
                 text_actor.SetInput(ann["text"])
 
@@ -466,6 +528,8 @@ class PointCloudViewer(QWidget):
             initial_font_family=ann.get("font_family", "Arial"),
             initial_font_size=ann.get("font_size", 14),
             initial_line_width=ann.get("line_width", 2),
+            initial_bold=ann.get("bold", True),
+            initial_italic=ann.get("italic", False),
             show_line_width=(ann.get("type") == "line_text"),
         )
         if dialog.exec() == AnnotationEditDialog.Accepted:
@@ -587,17 +651,16 @@ class PointCloudViewer(QWidget):
         qcolor = QColor(color) if isinstance(color, str) else color
         rgb = qcolor.getRgbF()[:3]
         prop.SetColor(*rgb)
-        prop.SetBold(True)
+        prop.SetBold(bool(annotation.get("bold", True)))
+        prop.SetItalic(bool(annotation.get("italic", False)))
 
-        # "Callout" card look: semi-transparent light background + a thin
-        # border in the annotation's color. VTK's 2D text rendering has no
-        # rounded-corner or blur/shadow support, so this is the closest
-        # practical approximation without a much larger rendering change.
-        prop.SetBackgroundColor(1.0, 1.0, 1.0)
-        prop.SetBackgroundOpacity(0.35 if preview else 0.82)
-        prop.SetFrame(True)
-        prop.SetFrameColor(*rgb)
-        prop.SetFrameWidth(2)
+        # "Callout" card look: soft, misty gray translucent background,
+        # no border. VTK's 2D text rendering has no rounded-corner or
+        # blur/shadow support, so this is the closest practical
+        # approximation without a much larger rendering change.
+        prop.SetBackgroundColor(0.5, 0.5, 0.5)
+        prop.SetBackgroundOpacity(0.25 if preview else 0.55)
+        prop.SetFrame(False)
         return text_actor
 
     def _build_line_actor(self, annotation, preview=False):

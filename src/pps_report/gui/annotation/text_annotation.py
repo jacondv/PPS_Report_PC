@@ -75,6 +75,8 @@ class TextAnnotation(Annotation):
                 initial_color=QColor(default_style["color"]),
                 initial_font_family=default_style["font_family"],
                 initial_font_size=default_style["font_size"],
+                initial_bold=default_style["bold"],
+                initial_italic=default_style["italic"],
                 show_line_width=False,
             )
             if dialog.exec() != AnnotationEditDialog.Accepted:
@@ -92,6 +94,8 @@ class TextAnnotation(Annotation):
                 "color": values["color"],
                 "font_size": values["font_size"],
                 "font_family": values["font_family"],
+                "bold": values["bold"],
+                "italic": values["italic"],
                 "text_position": (int(x), int(y)),
             })
 

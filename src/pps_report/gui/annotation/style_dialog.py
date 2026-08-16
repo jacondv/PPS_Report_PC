@@ -4,8 +4,8 @@ and line width (for leader-line annotations).
 """
 
 from PySide6.QtWidgets import (
-    QDialog, QFormLayout, QVBoxLayout, QComboBox, QSpinBox, QTextEdit,
-    QPushButton, QDialogButtonBox, QColorDialog,
+    QDialog, QFormLayout, QVBoxLayout, QHBoxLayout, QComboBox, QSpinBox, QTextEdit,
+    QPushButton, QDialogButtonBox, QColorDialog, QCheckBox,
 )
 from PySide6.QtGui import QColor
 
@@ -15,7 +15,8 @@ from .annotation_base import FONT_FAMILIES
 class AnnotationEditDialog(QDialog):
     def __init__(self, parent=None, initial_text=None, initial_color=QColor(0, 0, 0),
                  initial_font_family="Arial", initial_font_size=14,
-                 initial_line_width=2, show_line_width=True):
+                 initial_line_width=2, show_line_width=True,
+                 initial_bold=True, initial_italic=False):
         super().__init__(parent)
         self.setWindowTitle("Annotation")
         self.setModal(True)
@@ -49,6 +50,16 @@ class AnnotationEditDialog(QDialog):
         self.spin_font_size.setRange(8, 72)
         self.spin_font_size.setValue(initial_font_size)
         form.addRow("Font size:", self.spin_font_size)
+
+        style_row = QHBoxLayout()
+        self.chk_bold = QCheckBox("Bold")
+        self.chk_bold.setChecked(initial_bold)
+        self.chk_italic = QCheckBox("Italic")
+        self.chk_italic.setChecked(initial_italic)
+        style_row.addWidget(self.chk_bold)
+        style_row.addWidget(self.chk_italic)
+        style_row.addStretch()
+        form.addRow("Style:", style_row)
 
         self.spin_line_width = QSpinBox()
         self.spin_line_width.setRange(1, 10)
@@ -87,6 +98,8 @@ class AnnotationEditDialog(QDialog):
             "font_family": self.cmb_font_family.currentText(),
             "font_size": self.spin_font_size.value(),
             "line_width": self.spin_line_width.value(),
+            "bold": self.chk_bold.isChecked(),
+            "italic": self.chk_italic.isChecked(),
         }
         if self._show_text:
             result["text"] = self.text_edit.toPlainText().strip()

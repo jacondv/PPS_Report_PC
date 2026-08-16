@@ -58,6 +58,8 @@ class EditStyleAnnotation(Annotation):
             initial_font_family=ann.get("font_family", "Arial"),
             initial_font_size=ann.get("font_size", 14),
             initial_line_width=ann.get("line_width", 2),
+            initial_bold=ann.get("bold", True),
+            initial_italic=ann.get("italic", False),
             show_line_width=(ann.get("type") == "line_text"),
         )
         if dialog.exec() == AnnotationEditDialog.Accepted:

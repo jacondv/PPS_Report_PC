@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
-from pps_report.gui.theme import SURFACE, BORDER, TEXT, TEXT_MUTED, ACCENT, ACCENT_HOVER
+from pps_report.gui.theme import get_colors
 
 
 class HotkeysDialog(QDialog):
@@ -12,6 +12,8 @@ class HotkeysDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Keyboard Shortcuts")
         self.resize(500, 500)
+
+        c = get_colors()
 
         main_layout = QVBoxLayout(self)
 
@@ -26,8 +28,8 @@ class HotkeysDialog(QDialog):
             box = QFrame()
             box.setStyleSheet(f"""
                 QFrame {{
-                    background: {SURFACE};
-                    border: 1px solid {BORDER};
+                    background: {c['bg_secondary']};
+                    border: 1px solid {c['border']};
                     border-radius: 8px;
                     padding: 10px;
                 }}
@@ -38,14 +40,14 @@ class HotkeysDialog(QDialog):
             lbl_title.setStyleSheet(f"""
                 font-size: 15px;
                 font-weight: 600;
-                color: {ACCENT};
+                color: {c['accent']};
             """)
 
             lbl_text = QLabel(text)
             lbl_text.setTextFormat(Qt.RichText)
             lbl_text.setStyleSheet(f"""
                 font-size: 13px;
-                color: {TEXT};
+                color: {c['text_main']};
             """)
             lbl_text.setWordWrap(True)
 
@@ -53,14 +55,22 @@ class HotkeysDialog(QDialog):
             v.addWidget(lbl_text)
             return box
 
-        layout.addWidget(section("Camera Controls", """
-        <b>Key T</b> : Top view<br>
-        <b>Key G</b> : Bottom view<br>
-        <b>Key F</b> : Front view<br>
-        <b>Key B</b> : Back view<br>
-        <b>Key R</b> : Right view<br>
-        <b>Key L</b> : Left view<br>
-        <b>I</b> : Isometric view
+        layout.addWidget(section("File / Viewport", """
+        <b>Key O</b> : Open file<br>
+        <b>Key R</b> : Reset view<br>
+        <b>Ctrl + O</b> : Open file<br>
+        <b>Ctrl + S</b> : Save project<br>
+        <b>Ctrl + E</b> : Export PDF report
+        """))
+
+        layout.addWidget(section("Camera Views", """
+        <b>Key 1</b> : Top view<br>
+        <b>Key 2</b> : Bottom view<br>
+        <b>Key 3</b> : Front view<br>
+        <b>Key 4</b> : Back view<br>
+        <b>Key 5</b> : Right view<br>
+        <b>Key 6</b> : Left view<br>
+        <b>Key 7</b> : Isometric view
         """))
 
         layout.addWidget(section("Mouse", """
@@ -69,18 +79,19 @@ class HotkeysDialog(QDialog):
         Middle     : Pan
         """))
 
-        layout.addWidget(section("Annotation Tools", """
-        <b>Key 1</b> : Add Text annotation<br>
-        <b>Key 2</b> : Add Line annotation<br>
-        <b>Key 3</b> : Move annotation<br>
-        <b>Key 4</b> : Delete annotation<br>
-        <b>Key 5</b> : Edit annotation style
+        layout.addWidget(section("Selection / Annotation Tools", """
+        <b>Key S</b> : Polygon selection<br>
+        <b>Key T</b> : Add Text annotation<br>
+        <b>Key L</b> : Add Line annotation<br>
+        <b>Key M</b> : Move annotation<br>
+        <b>Key D</b> : Delete annotation<br>
+        Double-click an annotation : Edit its text/style
         """))
 
         layout.addWidget(section("Other", """
-        <b>Ctrl + O</b> : Open file<br>
-        <b>Ctrl + E</b> : Export PDF report<br>
-        <b>Esc</b> : Clear selection
+        <b>Ctrl + Z</b> : Undo<br>
+        <b>Ctrl + Y</b> : Redo<br>
+        <b>Esc</b> : Cancel current tool
         """))
 
         layout.addStretch()
@@ -89,14 +100,14 @@ class HotkeysDialog(QDialog):
         btn_close = QPushButton("Close")
         btn_close.setStyleSheet(f"""
             QPushButton {{
-                background: {ACCENT};
+                background: {c['accent']};
                 color: white;
                 border-radius: 6px;
                 padding: 8px 16px;
                 font-weight: 600;
             }}
             QPushButton:hover {{
-                background: {ACCENT_HOVER};
+                background: {c['accent_hover']};
             }}
         """)
         btn_close.clicked.connect(self.close)

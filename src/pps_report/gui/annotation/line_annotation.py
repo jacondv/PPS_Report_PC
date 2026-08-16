@@ -56,6 +56,8 @@ class LineAnnotation(Annotation):
                 "color": style["color"],
                 "font_size": style["font_size"],
                 "font_family": style["font_family"],
+                "bold": style["bold"],
+                "italic": style["italic"],
                 "text": None,
             })
             return
@@ -72,6 +74,8 @@ class LineAnnotation(Annotation):
                 initial_font_family=default_style["font_family"],
                 initial_font_size=default_style["font_size"],
                 initial_line_width=default_style["line_width"],
+                initial_bold=default_style["bold"],
+                initial_italic=default_style["italic"],
                 show_line_width=True,
             )
             if dialog.exec() != AnnotationEditDialog.Accepted:
@@ -88,6 +92,8 @@ class LineAnnotation(Annotation):
                 "font_size": values["font_size"],
                 "font_family": values["font_family"],
                 "line_width": values["line_width"],
+                "bold": values["bold"],
+                "italic": values["italic"],
             })
             self.state = self.STATE_TEXT
             return
@@ -130,6 +136,8 @@ class LineAnnotation(Annotation):
             "text_position": self.text_pos,
             "font_size": self.annotation["font_size"],
             "font_family": self.annotation["font_family"],
+            "bold": self.annotation.get("bold", True),
+            "italic": self.annotation.get("italic", False),
             'points': [self.start, self.end, self.text_pos],
             "line_width": self.annotation["line_width"],
         }

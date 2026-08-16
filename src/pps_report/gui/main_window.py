@@ -12,18 +12,19 @@ from typing import Optional
 
 from PySide6.QtWidgets import (
     QFrame, QLineEdit, QMainWindow, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
-    QToolBar, QToolButton, QStyle, QFileDialog, QMessageBox, QGroupBox,
+    QToolBar, QToolButton, QFileDialog, QMessageBox, QGroupBox, QApplication,
     QLabel, QPushButton, QSpinBox, QDoubleSpinBox, QComboBox,
     QListWidget, QListWidgetItem, QProgressBar, QStatusBar,
     QFormLayout, QScrollArea, QCheckBox, QMenu, QInputDialog,
     QAbstractItemView, QDialog, QDialogButtonBox, QSlider,
 )
 from PySide6.QtCore import Qt, QSize, QPoint, QSettings
-from PySide6.QtGui import QFont, QColor, QPixmap, QIcon, QPixmapCache, QAction
+from PySide6.QtGui import QFont, QColor, QPixmap, QIcon, QPixmapCache, QAction, QKeySequence, QShortcut
 
 from pps_report.gui.help import HotkeysDialog
 from pps_report.gui.viewer_3d import PointCloudViewer
 from pps_report.gui.workers import CalculationWorker
+from pps_report.gui import theme as theme_module
 from pps_report.core.ply_loader import load_ply, get_ply_fields
 from pps_report.core.filename_parser import parse_filename, ProjectInfo
 from pps_report.core.layer_manager import Layer, LayerManager
@@ -176,19 +177,6 @@ class MainWindow(QMainWindow):
 
         lay.addWidget(sg)
 
-        # ---- Visualization ----
-        vg = QGroupBox("Visualization")
-        vl = QFormLayout(vg)
-
-        self.spin_point_size = QSpinBox()
-        self.spin_point_size.setRange(1, 10); self.spin_point_size.setValue(1)
-        vl.addRow("Point Size:", self.spin_point_size)
-
-        self.cmb_colormap = QComboBox()
-        self.cmb_colormap.addItems(['jet', 'viridis', 'plasma', 'coolwarm', 'rainbow'])
-        self.cmb_colormap.hide()
-        lay.addWidget(vg)
-
         # ---- Layer Manager ----
         self.lbl_sel_count = QLabel("No selection")
         self.lbl_sel_count.setStyleSheet("color:#2c5282; font-weight:bold; font-size:10px;")
@@ -214,6 +202,19 @@ class MainWindow(QMainWindow):
         self.lbl_current_layer.setStyleSheet("color:#2c5282; font-weight:bold; font-size:14px;")
         layer_layout.addWidget(self.lbl_current_layer)
         lay.addWidget(layer_box, stretch=1)
+
+        # ---- Visualization (moved to the bottom) ----
+        vg = QGroupBox("Visualization")
+        vl = QFormLayout(vg)
+
+        self.spin_point_size = QSpinBox()
+        self.spin_point_size.setRange(1, 10); self.spin_point_size.setValue(1)
+        vl.addRow("Point Size:", self.spin_point_size)
+
+        self.cmb_colormap = QComboBox()
+        self.cmb_colormap.addItems(['jet', 'viridis', 'plasma', 'coolwarm', 'rainbow'])
+        self.cmb_colormap.hide()
+        lay.addWidget(vg)
 
         return panel
 
@@ -257,13 +258,40 @@ class MainWindow(QMainWindow):
 
         # Distribution
         dg = QGroupBox("Thickness Distribution")
+        dg.setStyleSheet("QGroupBox { border: 1px solid #2563eb; border-radius: 8px; margin-top: 12px; padding-top: 12px; font-weight: 600; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 6px; }")
         dl = QVBoxLayout(dg)
-        self.lbl_below  = QLabel("-"); self.lbl_below.setStyleSheet("color:#c53030;font-weight:bold;")
-        self.lbl_within = QLabel("-"); self.lbl_within.setStyleSheet("color:#276749;font-weight:bold;")
-        self.lbl_above  = QLabel("-"); self.lbl_above.setStyleSheet("color:#315aff;font-weight:bold;")
-        dl.addWidget(QLabel("Below Target:")); dl.addWidget(self.lbl_below)
-        dl.addWidget(QLabel("Within Target:"));  dl.addWidget(self.lbl_within)
-        dl.addWidget(QLabel("Above Target:")); dl.addWidget(self.lbl_above)
+        dl.setSpacing(10)
+
+        def dist_row(title, color):
+            row = QVBoxLayout()
+            row.setSpacing(3)
+            head = QHBoxLayout()
+            lbl_title = QLabel(title)
+            lbl_title.setStyleSheet("font-weight:600;")
+            lbl_pct = QLabel("-")
+            lbl_pct.setStyleSheet(f"color:{color}; font-weight:bold;")
+            head.addWidget(lbl_title)
+            head.addStretch()
+            head.addWidget(lbl_pct)
+            row.addLayout(head)
+
+            bar = QProgressBar()
+            bar.setRange(0, 100)
+            bar.setValue(0)
+            bar.setTextVisible(False)
+            bar.setFixedHeight(6)
+            bar.setStyleSheet(f"""
+                QProgressBar {{ border: none; border-radius: 3px; background: #e2e8f0; }}
+                QProgressBar::chunk {{ background: {color}; border-radius: 3px; }}
+            """)
+            row.addWidget(bar)
+            dl.addLayout(row)
+            return lbl_pct, bar
+
+        self.lbl_below, self.bar_below   = dist_row("Below Target", "#ef4444")
+        self.lbl_within, self.bar_within = dist_row("Within Target", "#10b981")
+        self.lbl_above, self.bar_above   = dist_row("Above Target", "#2563eb")
+
         lay.addWidget(dg)
 
         lay.addStretch()
@@ -290,13 +318,13 @@ class MainWindow(QMainWindow):
 
         vm = mb.addMenu("View")
         for label, key, fn in [
-            ("Top View",   "T", self.viewer.view_top),
-            ("Bottom View", "G", self.viewer.view_bottom),
-            ("Front View", "F", self.viewer.view_front),
-            ("Back View", "B", self.viewer.view_back),
-            ("Right View", "R", self.viewer.view_right),
-            ("Left View",  "L", self.viewer.view_left),
-            ("Iso View",   "I", self.viewer.view_iso),
+            ("Top View",    "1", self.viewer.view_top),
+            ("Bottom View", "2", self.viewer.view_bottom),
+            ("Front View",  "3", self.viewer.view_front),
+            ("Back View",   "4", self.viewer.view_back),
+            ("Right View",  "5", self.viewer.view_right),
+            ("Left View",   "6", self.viewer.view_left),
+            ("Iso View",    "7", self.viewer.view_iso),
         ]:
             a = QAction(label, self); a.setShortcut(key); a.triggered.connect(fn)
             vm.addAction(a)
@@ -308,57 +336,94 @@ class MainWindow(QMainWindow):
         hotkeys = hm.addAction("Keyboard Shortcuts")
         hotkeys.triggered.connect(self._show_hotkeys)
 
-    def _make_ribbon_button(self, text, icon, tooltip, checkable=False):
+        # Light/Dark toggle, top-right corner of the menu bar.
+        self.btn_theme_toggle = QToolButton()
+        self.btn_theme_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.btn_theme_toggle.setAutoRaise(True)
+        self.btn_theme_toggle.clicked.connect(self._on_toggle_theme)
+        mb.setCornerWidget(self.btn_theme_toggle, Qt.TopRightCorner)
+        self._update_theme_button()
+
+    def _on_toggle_theme(self):
+        new_mode = "dark" if theme_module.current_theme() == "light" else "light"
+        theme_module.apply_theme(QApplication.instance(), new_mode)
+        self.viewer.set_theme(new_mode)
+        self._refresh_toolbar_icons()
+        self._update_theme_button()
+
+    def _update_theme_button(self):
+        if theme_module.current_theme() == "dark":
+            self.btn_theme_toggle.setText("☀ Light Mode")
+        else:
+            self.btn_theme_toggle.setText("🌙 Dark Mode")
+
+    def _make_ribbon_button(self, text, icon_name, tooltip, checkable=False):
         """QToolButton (icon-over-text) matching the style of the viewer's
         annotation/segment toolbar buttons."""
+        from pps_report.gui.lucide_icons import load_icon
+        from pps_report.gui.theme import get_colors
+
         btn = QToolButton()
         btn.setText(text)
-        btn.setIcon(icon)
+        btn.setIcon(load_icon(icon_name, get_colors()["text_main"]))
         btn.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         btn.setIconSize(QSize(20, 20))
         btn.setCheckable(checkable)
         btn.setToolTip(tooltip)
+        self._icon_recipes[btn] = icon_name
         return btn
 
-    def _build_selection_toolbar_widgets(self, tb: QToolBar):
-        """Selection/create-segment controls, moved from the left panel onto
-        the main toolbar. Both Polygon and By-Thickness selection end in a
-        confirm dialog that asks for a segment name."""
-        style = self.style()
+    def _make_ribbon_action(self, text, icon_name, tooltip=""):
+        from pps_report.gui.lucide_icons import load_icon
+        from pps_report.gui.theme import get_colors
 
+        act = QAction(load_icon(icon_name, get_colors()["text_main"]), text, self)
+        if tooltip:
+            act.setToolTip(tooltip)
+        self._icon_recipes[act] = icon_name
+        return act
+
+    def _refresh_toolbar_icons(self):
+        from pps_report.gui.lucide_icons import load_icon
+        from pps_report.gui.theme import get_colors
+        color = get_colors()["text_main"]
+        for widget, name in self._icon_recipes.items():
+            widget.setIcon(load_icon(name, color))
+
+    def _build_selection_toolbar_widgets(self, tb: QToolBar):
+        """Selection controls, moved from the left panel onto the main
+        toolbar. Both Polygon and By-Thickness selection end in a confirm
+        dialog that asks for a segment name — no separate Create-Segment
+        button is needed."""
         self.btn_polygon = self._make_ribbon_button(
-            "Polygon", style.standardIcon(QStyle.SP_FileDialogListView),
-            "Draw an area to select points", checkable=True)
+            "Polygon", "pentagon", "Draw an area to select points", checkable=True)
         self.btn_polygon.toggled.connect(self._on_polygon_toggled)
+        QShortcut(QKeySequence("S"), self).activated.connect(self.btn_polygon.click)
         tb.addWidget(self.btn_polygon)
 
         btn_range = self._make_ribbon_button(
-            "By Thickness", style.standardIcon(QStyle.SP_FileDialogContentsView),
-            "Select points within a thickness range")
+            "By Thickness", "layers", "Select points within a thickness range")
         btn_range.clicked.connect(self._on_select_by_range_dialog)
         tb.addWidget(btn_range)
 
-        self.btn_add_seg = self._make_ribbon_button(
-            "Create Seg.", style.standardIcon(QStyle.SP_FileDialogNewFolder),
-            "Create a segment from the current selection")
-        self.btn_add_seg.clicked.connect(self._prompt_create_segment_dialog)
-        tb.addWidget(self.btn_add_seg)
-
     def _setup_toolbar(self):
+        self._icon_recipes = {}
+
         tb = QToolBar("Main")
         tb.setIconSize(QSize(22, 22))
         tb.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         self.addToolBar(tb)
-        style = self.style()
 
         # ---- File / view ----
-        self.act_open_file = QAction(style.standardIcon(QStyle.SP_DialogOpenButton), "Open File", self)
+        self.act_open_file = self._make_ribbon_action("Open File", "folder-open")
         self.act_open_file.triggered.connect(self._on_open_file)
         tb.addAction(self.act_open_file)
+        QShortcut(QKeySequence("O"), self).activated.connect(self.act_open_file.trigger)
 
-        self.act_reset_view = QAction(style.standardIcon(QStyle.SP_BrowserReload), "Reset View", self)
+        self.act_reset_view = self._make_ribbon_action("Reset View", "rotate-ccw")
         self.act_reset_view.triggered.connect(self.viewer.reset_view)
         tb.addAction(self.act_reset_view)
+        QShortcut(QKeySequence("R"), self).activated.connect(self.act_reset_view.trigger)
         tb.addSeparator()
 
         # ---- Selection / segment creation ----
@@ -385,11 +450,11 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
 
         # ---- Analysis / export ----
-        self.btn_calculate = QAction(style.standardIcon(QStyle.SP_FileDialogInfoView), "Calculate", self)
+        self.btn_calculate = self._make_ribbon_action("Calculate", "calculator")
         self.btn_calculate.triggered.connect(self._on_calculate)
         tb.addAction(self.btn_calculate)
 
-        self.act_export_pdf = QAction(style.standardIcon(QStyle.SP_DialogSaveButton), "Export PDF", self)
+        self.act_export_pdf = self._make_ribbon_action("Export PDF", "file-text")
         self.act_export_pdf.triggered.connect(self._on_export_pdf)
         tb.addAction(self.act_export_pdf)
 
@@ -691,20 +756,17 @@ class MainWindow(QMainWindow):
                 self.btn_polygon.setChecked(False)
                 QMessageBox.warning(self, "Warning", "Please load a PLY file first!")
                 return
-            self.btn_polygon.setText("⏹  Cancel polygon drawing")
             self.statusbar.showMessage(
                 "Drawing polygon: Left-click to add points  |  Double-click/Enter: complete  |  ESC: cancel"
             )
             self.viewer.enable_polygon_mode()
         else:
-            self.btn_polygon.setText("✏  Draw polygon")
             self.viewer.disable_polygon_mode()
             self.statusbar.showMessage("Ready")
 
     def _on_polygon_mode_ended(self):
         self.btn_polygon.blockSignals(True)
         self.btn_polygon.setChecked(False)
-        self.btn_polygon.setText("✏  Draw polygon")
         self.btn_polygon.blockSignals(False)
 
     def _on_select_by_range_dialog(self):
@@ -1037,12 +1099,17 @@ class MainWindow(QMainWindow):
         self.lbl_std_thickness.setText(f"{calc.std_thickness_mm:.0f}")
         self.lbl_num_points.setText(f"{calc.num_points:,}")
 
-        self.lbl_below.setText(
-            f"{dist.below_target:,} points ({dist.below_target_percent:.1f}%)")
-        self.lbl_within.setText(
-            f"{dist.within_target:,} points ({dist.within_target_percent:.1f}%)")
-        self.lbl_above.setText(
-            f"{dist.above_target:,} points ({dist.above_target_percent:.1f}%)")
+        self.lbl_below.setText(f"{dist.below_target_percent:.1f}%")
+        self.lbl_below.setToolTip(f"{dist.below_target:,} points")
+        self.bar_below.setValue(int(round(dist.below_target_percent)))
+
+        self.lbl_within.setText(f"{dist.within_target_percent:.1f}%")
+        self.lbl_within.setToolTip(f"{dist.within_target:,} points")
+        self.bar_within.setValue(int(round(dist.within_target_percent)))
+
+        self.lbl_above.setText(f"{dist.above_target_percent:.1f}%")
+        self.lbl_above.setToolTip(f"{dist.above_target:,} points")
+        self.bar_above.setValue(int(round(dist.above_target_percent)))
 
     def _on_calc_done(self, calc: CalculationResult, dist: ThicknessDistribution):
         self._display_calc_result(calc, dist)
@@ -1131,6 +1198,8 @@ class MainWindow(QMainWindow):
                   self.lbl_num_points, self.lbl_below, self.lbl_within,
                   self.lbl_above):
             w.setText("-")
+        for bar in (self.bar_below, self.bar_within, self.bar_above):
+            bar.setValue(0)
         self.calc_result    = None
         self.thickness_dist = None
 
@@ -1294,6 +1363,15 @@ class MainWindow(QMainWindow):
         self.viewer._annotation_font_family = self.settings.value('font_family', 'Arial')
         self.settings.endGroup()
 
+        self.settings.beginGroup('Appearance')
+        saved_theme = self.settings.value('theme', 'light')
+        self.settings.endGroup()
+        if saved_theme != theme_module.current_theme():
+            theme_module.apply_theme(QApplication.instance(), saved_theme)
+        self.viewer.set_theme(saved_theme)
+        self._refresh_toolbar_icons()
+        self._update_theme_button()
+
     def _save_settings(self):
         self.settings.beginGroup('Visualization')
         self.settings.setValue('point_size', self.spin_point_size.value())
@@ -1307,4 +1385,8 @@ class MainWindow(QMainWindow):
         self.settings.setValue('line_width', self.viewer._annotation_line_width)
         self.settings.setValue('font_size', self.viewer._annotation_font_size)
         self.settings.setValue('font_family', self.viewer._annotation_font_family)
+        self.settings.endGroup()
+
+        self.settings.beginGroup('Appearance')
+        self.settings.setValue('theme', theme_module.current_theme())
         self.settings.endGroup()

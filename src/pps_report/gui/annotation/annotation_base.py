@@ -8,6 +8,8 @@ annotation_template = {
     "color": "#000000",
     "font_size": 14,
     "font_family": "Arial",
+    "bold": True,
+    "italic": False,
     "points": [],
     "text": "",
     "text_position": (0, 0),
