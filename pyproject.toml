@@ -34,7 +34,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "pps_report.report" = ["templates/*.html", "assets/images/*"]
-"pps_report.gui" = ["icons/*.png", "icons/lucide/*.svg"]
+"pps_report.gui" = ["icons/lucide/*.svg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

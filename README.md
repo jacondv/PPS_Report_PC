@@ -79,7 +79,7 @@ Ví dụ: `TunnelA#JOB001#143025#Section1.ply`
 
 ```
 PPS_Report_PC/
-├── main.py                 # Thin entry-point shim (build.spec/run.vbs target)
+├── main.py                 # Thin entry-point shim (build.spec target)
 ├── pyproject.toml          # Package + dependency config (canonical)
 ├── requirements.txt        # Kept in sync with pyproject.toml for `pip install -r`
 ├── build.spec              # PyInstaller build config

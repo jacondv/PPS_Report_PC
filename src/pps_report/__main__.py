@@ -28,7 +28,6 @@ REQUIRED = [
     "pyvista",
     "pyvistaqt",
     "numpy",
-    "plyfile",
     "open3d",
     "matplotlib",
     "scipy",
