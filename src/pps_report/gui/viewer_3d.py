@@ -706,6 +706,41 @@ class PointCloudViewer(QWidget):
         self.plotter.ren_win.Render()
         return actors
 
+    # ------------------------------------------------------------------ annotation highlight
+    def _set_annotation_highlight(self, item: dict, highlighted: bool):
+        """Show a colored frame/thicker line on an annotation while it is selected."""
+        if not item:
+            return
+        ann = item["annotation"]
+        actor = ann.get("actor")
+        highlight_color = (0.15, 0.55, 0.95)
+
+        text_actor = actor.get("text_actor") if isinstance(actor, dict) else (
+            actor if ann.get("type") == "text" else None
+        )
+        line_actor = actor.get("line_actor") if isinstance(actor, dict) else None
+
+        if text_actor is not None:
+            prop = text_actor.GetTextProperty()
+            prop.SetFrame(highlighted)
+            if highlighted:
+                prop.SetFrameColor(*highlight_color)
+                prop.SetFrameWidth(2)
+
+        if line_actor is not None:
+            line_prop = line_actor.GetProperty()
+            base_width = ann.get("line_width", 2)
+            if highlighted:
+                line_prop.SetColor(*highlight_color)
+                line_prop.SetLineWidth(base_width + 2)
+            else:
+                color = ann.get("color", "#000000")
+                qcolor = QColor(color) if isinstance(color, str) else color
+                line_prop.SetColor(*qcolor.getRgbF()[:3])
+                line_prop.SetLineWidth(base_width)
+
+        self.plotter.ren_win.Render()
+
     # ------------------------------------------------------------------ annotation removal
     def _delete_annotation_by_layer(self, layer_name: str):
         if layer_name in ("all", None, ""):

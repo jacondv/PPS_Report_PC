@@ -1,3 +1,6 @@
+import vtk
+
+
 class AnnotationManager:
     def __init__(self):
         self.annotations = {}
@@ -27,6 +30,9 @@ class AnnotationManager:
 
         if self.active_annotation:
             self.active_annotation.on_activate()
-            # This is a workaround to fix the issue where the camera interaction is still active after activating an annotation.
-            self.active_annotation.viewer._iren.SetInteractorStyle(None)
+            # Use a real no-op style (not None) so VTK's button-press/release
+            # state stays consistent; SetInteractorStyle(None) left the
+            # interactor's internal button state stuck, causing the camera
+            # to rotate on mouse-move after the tool finished.
+            self.active_annotation.viewer._iren.SetInteractorStyle(vtk.vtkInteractorStyleUser())
 

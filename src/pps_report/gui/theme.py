@@ -67,6 +67,7 @@ QGroupBox::title {{
     left: 10px;
     padding: 0 6px;
     color: {c['text_main']};
+    background-color: transparent;
 }}
 
 QPushButton {{

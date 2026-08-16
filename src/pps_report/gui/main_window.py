@@ -154,12 +154,8 @@ class MainWindow(QMainWindow):
         lay.addWidget(fg)
 
         # ---- Settings ----
-        sg = QGroupBox("Analysis Settings")
+        sg = QGroupBox("Target Settings")
         sl = QFormLayout(sg)
-
-        self.cmb_dist_field = QComboBox()
-        self.cmb_dist_field.addItem("distances")
-        sl.addRow("Thickness Field:", self.cmb_dist_field)
 
         self.spin_target_min = QDoubleSpinBox()
         self.spin_target_min.setRange(0, 9999); self.spin_target_min.setValue(self.target_min)
@@ -258,7 +254,6 @@ class MainWindow(QMainWindow):
 
         # Distribution
         dg = QGroupBox("Thickness Distribution")
-        dg.setStyleSheet("QGroupBox { border: 1px solid #2563eb; border-radius: 8px; margin-top: 12px; padding-top: 12px; font-weight: 600; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 6px; }")
         dl = QVBoxLayout(dg)
         dl.setSpacing(10)
 
@@ -315,19 +310,6 @@ class MainWindow(QMainWindow):
             if label == "Exit":
                 fm.addSeparator()
             fm.addAction(a)
-
-        vm = mb.addMenu("View")
-        for label, key, fn in [
-            ("Top View",    "1", self.viewer.view_top),
-            ("Bottom View", "2", self.viewer.view_bottom),
-            ("Front View",  "3", self.viewer.view_front),
-            ("Back View",   "4", self.viewer.view_back),
-            ("Right View",  "5", self.viewer.view_right),
-            ("Left View",   "6", self.viewer.view_left),
-            ("Iso View",    "7", self.viewer.view_iso),
-        ]:
-            a = QAction(label, self); a.setShortcut(key); a.triggered.connect(fn)
-            vm.addAction(a)
 
         hm = mb.addMenu("Help")
         ab = QAction("About", self); ab.triggered.connect(self._show_about)
@@ -489,13 +471,9 @@ class MainWindow(QMainWindow):
             self.statusbar.showMessage(f"Loading: {filepath}…")
 
             fields = get_ply_fields(filepath)
-            self.cmb_dist_field.clear()
-            self.cmb_dist_field.addItems(fields)
-            for f in ('distances', 'distance', 'thickness', 'scalar_distances'):
-                if f in fields:
-                    self.cmb_dist_field.setCurrentText(f); break
+            dist_field = "distances" if "distances" in fields else "x"
 
-            cloud_data = load_ply(filepath, self.cmb_dist_field.currentText())
+            cloud_data = load_ply(filepath, dist_field)
             # dists = cloud_data.distances
             # dists = np.where(dists <= -20, np.abs(dists), dists)
             # dists = np.where((dists > -20) & (dists < 20), 0, dists)

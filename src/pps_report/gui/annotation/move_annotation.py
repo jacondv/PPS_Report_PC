@@ -31,6 +31,8 @@ class MoveAnnotation(Annotation):
         self.viewer.annotation_manager.activate(None)
 
     def _clear(self):
+        if self._selected_item is not None:
+            self.viewer._set_annotation_highlight(self._selected_item, False)
         self._selected_item = None
         self._dragging = False
 
@@ -62,6 +64,7 @@ class MoveAnnotation(Annotation):
         if self._selected_item is None:
             return
 
+        self.viewer._set_annotation_highlight(self._selected_item, True)
         self._dragging = True
         self._last_x = x
         self._last_y = y
