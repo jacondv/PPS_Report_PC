@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Point Cloud Inspection Pro</title>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        /* CSS Variables - Modern Palette */
+        :root {
+            --radius-sm: 4px;
+            --radius-md: 6px;
+            --radius-lg: 8px;
+            --font-main: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        [data-theme="dark"] {
+            --bg-base: #0d0f12;       /* Nền app tổng */
+            --bg-panel: #14171c;      /* Nền thanh công cụ & sidebar */
+            --bg-hover: #1e222a;      /* Nền khi hover */
+            --bg-active: #252a34;     /* Nền khi click/active */
+            --border-color: #262b35;  /* Viền phân tách */
+            --accent-color: #3b82f6;  /* Màu xanh chủ đạo */
+            --accent-hover: #4f46e5;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --canvas-bg: #0a0c10;
+        }
+
+        [data-theme="light"] {
+            --bg-base: #e2e8f0;
+            --bg-panel: #ffffff;
+            --bg-hover: #f1f5f9;
+            --bg-active: #e2e8f0;
+            --border-color: #cbd5e1;
+            --accent-color: #2563eb;
+            --accent-hover: #1d4ed8;
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+            --canvas-bg: #f8fafc;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-main);
+            font-size: 12px;
+            color: var(--text-primary);
+        }
+
+        /* Tùy chỉnh thanh cuộn chuyên nghiệp */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: var(--bg-base);
+            overflow: hidden;
+        }
+
+        /* --- HEADER & MENU --- */
+        header {
+            background-color: var(--bg-panel);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .menu-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 16px;
+            height: 32px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .menu-items { display: flex; gap: 4px; height: 100%; align-items: center; }
+        
+        .menu-item {
+            color: var(--text-secondary);
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .menu-item:hover {
+            color: var(--text-primary);
+            background-color: var(--bg-hover);
+        }
+
+        .theme-toggle-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
+            transition: all 0.15s ease;
+        }
+
+        .theme-toggle-btn:hover { background-color: var(--bg-hover); color: var(--text-primary); }
+        .theme-toggle-btn i { width: 14px; height: 14px; }
+
+        /* --- TOOLBAR CHUYÊN NGHIỆP --- */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            padding: 8px 16px;
+            gap: 16px; /* Khoảng cách giữa các nhóm */
+            overflow-x: auto;
+            background-color: var(--bg-panel);
+        }
+
+        .tool-group {
+            display: flex;
+            align-items: center;
+            gap: 4px; /* Khoảng cách giữa các nút trong nhóm */
+        }
+
+        .divider {
+            width: 1px;
+            height: 32px;
+            background-color: var(--border-color);
+        }
+
+        .btn-tool {
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            min-width: 68px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-tool i {
+            width: 18px;
+            height: 18px;
+            opacity: 0.8;
+            transition: opacity 0.2s ease;
+        }
+
+        .btn-tool span { font-weight: 500; }
+
+        .btn-tool:hover {
+            background: var(--bg-hover);
+            border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+        
+        .btn-tool:hover i { opacity: 1; color: var(--accent-color); }
+
+        .btn-primary {
+            background: var(--accent-color);
+            color: #ffffff;
+            border-color: var(--accent-color);
+        }
+        
+        .btn-primary i, .btn-primary span { color: #ffffff; opacity: 1; }
+        .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #ffffff;}
+        .btn-primary:hover i { color: #ffffff; }
+
+        /* --- APP LAYOUT --- */
+        .app-body {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            padding: 8px; /* Khoảng thở cho khu vực làm việc */
+            gap: 8px;
+        }
+
+        .sidebar {
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+        }
+
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .panel-header {
+            font-weight: 600;
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* Typography & Forms */
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-secondary);
+        }
+        .info-row span:last-child { color: var(--text-primary); font-weight: 500; }
+
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group label { color: var(--text-secondary); }
+        
+        input, select {
+            background: var(--bg-base);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            padding: 8px 10px;
+            outline: none;
+            transition: border 0.2s ease;
+        }
+        input:focus, select:focus { border-color: var(--accent-color); }
+
+        /* Layer List */
+        .layer-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            background: var(--bg-base);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .layer-item:hover { border-color: var(--text-secondary); }
+        .layer-item.active { border-color: var(--accent-color); background: rgba(59, 130, 246, 0.05); }
+        .layer-color { width: 12px; height: 12px; border-radius: 3px; }
+
+        /* --- 3D VIEWER --- */
+        .viewer-container {
+            flex: 1;
+            position: relative;
+            background: var(--canvas-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        #canvas-container { width: 100%; height: 100%; }
+
+        /* Viewport Controls */
+        .viewport-overlay {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            display: flex;
+            padding: 4px;
+            gap: 2px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .btn-view {
+            background: transparent;
+            border: none;
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        .btn-view:hover { background: var(--bg-hover); color: var(--accent-color); }
+
+        /* Badge */
+        .badge {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-color);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header & Nav -->
+    <header>
+        <div class="menu-bar">
+            <div class="menu-items">
+                <span class="menu-item">File</span>
+                <span class="menu-item">Edit</span>
+                <span class="menu-item">View</span>
+                <span class="menu-item">Analysis</span>
+                <span class="menu-item">Help</span>
+            </div>
+            <button class="theme-toggle-btn" onclick="toggleTheme()">
+                <i data-lucide="sun" id="themeIcon"></i>
+                <span id="themeText">Light Mode</span>
+            </button>
+        </div>
+        
+        <!-- Toolbar Chuyên nghiệp -->
+        <div class="toolbar">
+            <div class="tool-group">
+                <button class="btn-tool"><i data-lucide="folder-open"></i><span>Open</span></button>
+                <button class="btn-tool"><i data-lucide="save"></i><span>Save</span></button>
+                <button class="btn-tool"><i data-lucide="file-text"></i><span>Export</span></button>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <div class="tool-group">
+                <button class="btn-tool btn-primary"><i data-lucide="calculator"></i><span>Calculate</span></button>
+                <button class="btn-tool"><i data-lucide="layers"></i><span>Thickness</span></button>
+                <button class="btn-tool"><i data-lucide="box"></i><span>Volume</span></button>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="tool-group">
+                <button class="btn-tool"><i data-lucide="pentagon"></i><span>Polygon</span></button>
+                <button class="btn-tool"><i data-lucide="minus"></i><span>Line</span></button>
+                <button class="btn-tool"><i data-lucide="move"></i><span>Move</span></button>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="tool-group">
+                <button class="btn-tool"><i data-lucide="undo-2"></i><span>Undo</span></button>
+                <button class="btn-tool"><i data-lucide="trash-2"></i><span>Delete</span></button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="app-body">
+        
+        <!-- Sidebar Trái -->
+        <aside class="sidebar">
+            <div class="panel">
+                <div class="panel-header">Project Info</div>
+                <div class="info-row"><span>File:</span> <span>tunnel_scan_04.ply</span></div>
+                <div class="info-row"><span>Date:</span> <span>Aug 16, 2026</span></div>
+                <div class="info-row"><span>Points:</span> <span>1,245,882</span></div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Parameters</div>
+                <div class="form-group">
+                    <label>Analysis Field</label>
+                    <select><option>Absolute Distance</option><option>Z-Elevation</option></select>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <div class="form-group" style="flex:1;">
+                        <label>Min (mm)</label>
+                        <input type="number" value="40.0">
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label>Max (mm)</label>
+                        <input type="number" value="60.0">
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel" style="flex:1;">
+                <div class="panel-header">Layers <span class="badge">2 Active</span></div>
+                <div class="layer-item active">
+                    <input type="checkbox" checked>
+                    <div class="layer-color" style="background: #ef4444;"></div>
+                    <span style="flex:1;">Deviation Map</span>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" checked>
+                    <div class="layer-color" style="background: #3b82f6;"></div>
+                    <span style="flex:1;">Raw Point Cloud</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Viewer Trung tâm -->
+        <main class="viewer-container">
+            <div id="canvas-container"></div>
+            <div class="viewport-overlay">
+                <button class="btn-view" title="Top">TOP</button>
+                <button class="btn-view" title="Front">FRT</button>
+                <button class="btn-view" title="Right">RGT</button>
+                <button class="btn-view" style="color:var(--accent-color)">ISO</button>
+            </div>
+        </main>
+
+        <!-- Sidebar Phải -->
+        <aside class="sidebar">
+            <div class="panel">
+                <div class="panel-header">Inspection Results</div>
+                <div class="info-row"><span>Surface Area:</span> <span>124.50 m²</span></div>
+                <div class="info-row"><span>Mean Thickness:</span> <span>48.12 mm</span></div>
+                <div class="info-row"><span>Std. Deviation:</span> <span>4.15 mm</span></div>
+                <div class="info-row"><span>Total Volume:</span> <span>5.62 m³</span></div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Tolerance Distribution</div>
+                
+                <div class="form-group" style="margin-bottom: 8px;">
+                    <div class="info-row"><span>Underkill (&lt; 40mm)</span> <span style="color: #ef4444;">12.4%</span></div>
+                    <div style="height: 6px; background: var(--bg-base); border-radius: 3px; overflow:hidden;">
+                        <div style="width: 12.4%; height:100%; background:#ef4444;"></div>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 8px;">
+                    <div class="info-row"><span>In Tolerance</span> <span style="color: #10b981;">78.2%</span></div>
+                    <div style="height: 6px; background: var(--bg-base); border-radius: 3px; overflow:hidden;">
+                        <div style="width: 78.2%; height:100%; background:#10b981;"></div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <div class="info-row"><span>Overkill (&gt; 60mm)</span> <span style="color: #f59e0b;">9.4%</span></div>
+                    <div style="height: 6px; background: var(--bg-base); border-radius: 3px; overflow:hidden;">
+                        <div style="width: 9.4%; height:100%; background:#f59e0b;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">Display</div>
+                <div class="form-group">
+                    <label>Point Size: <span id="ptSizeVal">4</span>px</label>
+                    <input type="range" id="pointSizeInput" value="4" min="1" max="10" style="padding:0; height:4px; margin-top:8px;">
+                </div>
+            </div>
+        </aside>
+
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        let currentTheme = 'dark';
+        function toggleTheme() {
+            const htmlTag = document.documentElement;
+            const themeIcon = document.getElementById('themeIcon');
+            const themeText = document.getElementById('themeText');
+
+            if (currentTheme === 'dark') {
+                currentTheme = 'light';
+                htmlTag.setAttribute('data-theme', 'light');
+                themeText.innerText = 'Dark Mode';
+                scene.background = new THREE.Color(0xf8fafc);
+                gridHelper.material.color.setHex(0xcbd5e1);
+            } else {
+                currentTheme = 'dark';
+                htmlTag.setAttribute('data-theme', 'dark');
+                themeText.innerText = 'Light Mode';
+                scene.background = new THREE.Color(0x0a0c10);
+                gridHelper.material.color.setHex(0x262b35);
+            }
+            themeIcon.setAttribute('data-lucide', currentTheme === 'dark' ? 'sun' : 'moon');
+            lucide.createIcons();
+        }
+
+        // 3D Engine Setup
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0c10);
+
+        const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
+        camera.position.set(25, 20, 35);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // Visual Helpers
+        const gridHelper = new THREE.GridHelper(60, 60, 0x3b82f6, 0x262b35);
+        scene.add(gridHelper);
+
+        // Point Cloud Generation (Simulated Terrain/Tunnel Wall)
+        const count = 50000;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(count * 3);
+        const colors = new Float32Array(count * 3);
+
+        for (let i = 0; i < count; i++) {
+            let x = (Math.random() - 0.5) * 40;
+            let z = (Math.random() - 0.5) * 40;
+            let y = Math.sin(x * 0.15) * Math.cos(z * 0.15) * 5 + (Math.random() * 0.8);
+
+            positions[i * 3] = x;
+            positions[i * 3 + 1] = y + 4;
+            positions[i * 3 + 2] = z;
+
+            // Heatmap coloring based on elevation
+            if (y > 2.0) {
+                colors[i*3] = 0.93; colors[i*3+1] = 0.26; colors[i*3+2] = 0.26; // Red (Overkill)
+            } else if (y < -2.0) {
+                colors[i*3] = 0.23; colors[i*3+1] = 0.51; colors[i*3+2] = 0.96; // Blue (Underkill)
+            } else {
+                colors[i*3] = 0.06; colors[i*3+1] = 0.72; colors[i*3+2] = 0.50; // Green (In tolerance)
+            }
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        const material = new THREE.PointsMaterial({ size: 0.16, vertexColors: true });
+        const pointCloud = new THREE.Points(geometry, material);
+        scene.add(pointCloud);
+
+        // Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Responsive handling
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+
+        // UI Interactions
+        document.getElementById('pointSizeInput').addEventListener('input', (e) => {
+            const val = e.target.value;
+            document.getElementById('ptSizeVal').innerText = val;
+            material.size = val * 0.04;
+        });
+    </script>
+</body>
+</html>
