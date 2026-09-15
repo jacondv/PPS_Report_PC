@@ -1,0 +1,929 @@
+# Tunnel Concrete Thickness Analyzer
+
+## Project Overview
+
+Tunnel Concrete Thickness Analyzer is a desktop application for analyzing sprayed concrete thickness using point cloud comparison results.
+
+The application loads point clouds in PLY format containing per-point thickness values stored as scalar fields in [distances] filed.
+
+The software provides interactive 3D visualization, region selection, statistical analysis, and PDF report generation.
+
+The application runs completely offline.
+
+---
+
+# Technical Requirements
+
+Language
+- C++20
+
+Framework
+- Qt 6
+
+Renderer
+- VTK
+
+Point Cloud Library
+- PCL
+- Eigen
+
+Build System
+- CMake
+
+Platforms
+- Windows
+- macOS
+
+UI Language
+- English
+- Indonesian
+
+License
+- Commercial
+
+---
+
+# Non Functional Requirements
+
+The application shall
+
+- Load point clouds < 20 million points.
+- Keep the UI responsive during rendering.
+- Perform heavy computation in background threads.
+- Support High DPI displays.
+- Support Dark Mode.
+- Support multiple monitors.
+- Open within five seconds.
+- Avoid unnecessary memory copies.
+
+---
+
+# Software Architecture
+
+Application
+
+├── UI
+├── Scene
+├── Renderer
+├── IO
+├── Algorithms
+├── Tools
+├── Report
+└── Utils
+
+Each module has a single responsibility.
+
+---
+
+# Module Responsibilities
+
+## UI
+
+Responsible only for
+
+- Menus
+- Toolbars
+- Dock Widgets
+- Dialogs
+- Status Bar
+
+Never performs calculations.
+
+---
+
+## Scene
+
+Responsible for
+
+- Owning point clouds
+- Owning selections
+- Owning measurements
+- Managing project data
+
+The Scene owns all application data.
+
+---
+
+## Renderer
+
+Responsible only for
+
+- Rendering point clouds
+- Camera control
+- Color mapping
+- Overlays
+- Selection visualization
+
+Renderer never performs calculations.
+
+Renderer never modifies data.
+
+---
+
+## Algorithms
+
+Responsible for
+
+- Statistics
+- Surface area calculation
+- Volume calculation
+- Thickness analysis
+- Histogram generation
+
+Algorithms shall not depend on Qt Widgets.
+
+Algorithms shall not access UI classes.
+
+---
+
+## IO
+
+Responsible for
+
+- Reading PLY files
+- Exporting PDF
+- Exporting CSV
+- Saving screenshots
+
+---
+
+## Tools
+
+Each interactive tool shall be implemented as one class.
+
+Examples
+
+- PickTool
+- RectangleSelectionTool
+- PolygonSelectionTool
+- ThicknessRangeTool
+- MeasureTool
+
+---
+
+# Main Window Layout
+
++------------------------------------------------------------+
+| Menu                                                       |
++------------------------------------------------------------+
+| Toolbar                                                    |
++------------------------------------------------------------+
+| Project Tree |                3D Viewer                    |
+|              |                                             |
+|              |                                             |
+|              |                                             |
++------------------------------------------------------------+
+| Property Panel                                              |
++------------------------------------------------------------+
+| Status Bar                                                  |
++------------------------------------------------------------+
+
+Dock Widgets
+
+- Project
+- Properties
+- Statistics
+- Histogram
+- Selection
+
+All dock widgets shall be dockable and hideable.
+
+---
+
+# Workflow
+
+Open File
+
+↓
+
+Validate filename
+
+↓
+
+Load PLY 
+↓
+Fine  and Load file job_info.json in the same folder to get helpfull parameter
+{
+    "name": "JOB20260528",
+    "created": "2026-05-28 09:44:32",
+    "status": "pending",
+    "description": "",
+    "parameters": {
+        "target_thickness": 60,
+        "tolerance": 10
+    }
+}
+
+↓
+
+Read scalar fields , disntance
+
+↓
+
+Use parameter in job_info.json which use in Calculate statistics function. 
+
+↓
+
+Display point cloud
+
+↓
+
+User selects region
+
+↓
+
+Calculate statistics
+
+↓
+
+Generate report to PDF. 
+
+---
+
+# Supported File Format
+
+Supported
+
+- PLY (ASCII)
+- PLY (Binary)
+
+Required scalar field
+
+- distances
+
+If the scalar field is missing -> show warning and set distances field to all 0
+
+
+---
+
+# Filename Convention
+
+Format
+
+project#jobnumber#hhmmss#segment.ply
+
+Example
+
+TunnelA#JOB001#143025#Section01.ply
+
+Automatically extract
+
+- Project Name
+- Job Number
+- Scan Time
+- Segment Name
+
+---
+
+# Functional Requirements
+
+## Open File
+
+Shortcut
+
+Ctrl + O
+
+File Filter
+
+*compare*.ply
+
+After loading
+
+- Detect scalar fields automatically.
+- Select "distances" by default if available.
+
+---
+
+## 3D Viewer
+
+Support
+
+- Rotate
+- Pan
+- Zoom
+- Reset View
+- Top View
+- Front View
+- Side View
+- Fit All
+
+---
+
+## Color Mapping
+
+Users can customize the color palette, selecting the corresponding colors and thickness ranges.
+Default: 
+Distances < "target_thickness" - "tolerance" is red
+Distances > "target_thickness" + "tolerance" is blue
+"target_thickness" - "tolerance" < Distances < "target_thickness" + "tolerance" is green
+Distances > 150 is light blue.
+User can customs color and distance.
+
+Allow user to modify
+
+- Minimum value
+- Maximum value
+- Invert colors
+
+---
+
+## Selection
+
+Support
+
+- Rectangle Selection
+- Polygon Selection
+- Thickness Range Selection
+- Visible Points Only
+- Entire Cloud
+
+Selection modes
+
+- Replace
+- Add
+- Remove
+
+---
+
+## Statistics
+
+Calculate
+
+- Surface Area
+- Volume
+- Average Thickness
+- Minimum Thickness
+- Maximum Thickness
+- Median Thickness
+- Standard Deviation
+- Point Count
+- Reach target / total area
+
+Units
+
+- mm
+- m²
+- m³
+- liters
+
+---
+
+## Histogram
+
+Support
+
+- Adjustable bin count
+- Auto range
+- Manual range
+
+Display
+
+- Percentage
+- Point Count
+
+---
+
+## PDF Report Generation
+
+The PDF report is generated directly from the current 3D viewer.
+
+The report always reflects exactly what the user sees on the screen.
+
+---
+
+## Viewer Annotation
+
+The application shall allow annotations directly on the 3D viewer.
+
+Supported annotations
+
+- Text
+- Arrow
+- Leader Line
+- Rectangle
+- Circle
+- Ellipse
+- Freehand Drawing
+- Callout
+
+Annotation properties
+
+- Font
+- Font Size
+- Text Color
+- Line Color
+- Fill Color
+- Transparency
+- Line Width
+
+Annotations can be
+
+- Move
+- Resize
+- Rotate
+- Edit
+- Delete
+
+Annotations are rendered as an overlay and do not modify the point cloud.
+
+---
+
+## Viewer Capture
+
+When generating the report,
+
+the application shall capture the current viewer.
+
+The captured image shall include
+
+- Point Cloud
+- Current Camera Position
+- Current Crop
+- Current Selection
+- Current Color Map
+- Current Annotations
+- Current Legend
+- Current Scale Bar
+- Current Orientation Axis
+
+Hidden objects shall not appear.
+
+The capture shall use the current viewport exactly as displayed.
+
+---
+
+## Report Image
+
+The captured image shall be inserted into the PDF report.
+
+The image shall preserve
+
+- Aspect Ratio
+- Resolution
+- Anti-aliasing
+
+Capture resolution
+
+- Current Screen Resolution
+- Full HD
+- 4K
+- Custom Resolution
+
+---
+
+## Statistics
+
+Statistics shall be calculated using
+
+- Entire Cloud
+
+or
+
+- Current Selection
+
+depending on the user's choice.
+
+---
+
+## Statistics Chart
+
+The report shall include a statistical chart generated from the calculation result.
+
+Supported charts
+
+- Thickness Distribution
+
+
+The chart shall automatically use the same calculation dataset as the statistics.
+
+---
+
+## Report Layout
+
+The report shall contain
+
+- Company Logo
+- Project Information
+- Screenshot captured from Viewer
+- Statistics Chart
+- Calculation Parameters
+- User Notes
+- Report Date
+
+The report screenshot shall always represent the exact current viewer state.
+(put data to report in report_teamplate.html)
+(<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }}</title>
+  <style>
+    body { font-family: Helvetica, Arial, sans-serif; color: #1a202c; margin: 20px; }
+    /* ===== HEADER ===== */
+    .header {
+      display: block;
+      margin-bottom: 20px;
+    }
+    .header::after {
+      content: "";
+      display: block;
+      width: 100%;                 /* 👈 line ngắn lại */
+      height: 2px;
+      background: #015e83;
+      margin: 10px auto 0;        /* 👈 căn giữa */
+    }
+    .logo {
+      height: 60px;
+      vertical-align: bottom;
+    }
+
+    .title {
+      display: inline-block;     /* 🔥 quan trọng */
+      margin: 0 0 0 10px;        /* cách logo 1 chút */
+      font-size: 32px;
+      vertical-align: bottom;    /* căn giữa với logo */
+    }
+
+    /* h1 { color: #2d3748; font-size: 24px; margin-bottom: 8px; } */
+    .section-title { font-size: 16px; font-weight: bold; margin-top: 24px; margin-bottom: 10px;table-layout: fixed; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+    th, td { border: 1px solid #e2e8f0; padding: 8px; vertical-align: top; word-break: break-all;overflow-wrap: break-word; white-space: normal;}
+    th { background: #f7fafc; font-weight: bold; text-align: left; }
+    td { color: #1a202c; }
+    .chart, .screenshot { display: block; margin: 12px auto; max-width: 100%; max-height: 100%;object-fit: contain;}
+    .chart-container { height: 280px; display: flex; justify-content: center;  /* ngang */align-items: center;  /* dọc */}
+    .screenshot-block {
+      height: 400px;
+    }
+    .note-title { font-weight: bold; margin-bottom: 4px; }
+    .notes-block { margin-bottom: 18px; }
+    .notes-block div { margin-bottom: 12px; }
+    .metric-table td { text-align: center; }
+    .metric-table td:first-child { text-align: left; }
+    /* ---- FOOTER ---- */
+    .footer {
+        margin-top: 20px;
+        font-size: 12px;
+    }
+
+    .signature {
+        text-align: right;
+        margin-top: 40px;
+    }
+
+    .signature-line {
+        border-top: 1px solid #444;
+        width: 150px;
+        float: right;
+        text-align: center;
+        padding-top: 3px;
+        font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <!-- ===== HEADER ===== -->
+  <div class="header">
+    {% if logo_path %}
+    <img class="logo" src="{{ logo_path }}">
+    {% endif %}
+    <h1 class="title">{{ title }}</h1>
+  </div>
+
+  <div class="section-title">PROJECT INFORMATION</div>
+<table>
+    <colgroup>
+      <col style="width:20%">
+      <col style="width:30%">
+      <col style="width:30%">
+      <col style="width:20%">
+  </colgroup>
+  <tbody>
+    {% for row in project_rows %}
+    <tr>
+      <th>{{ row[0] }}</th>
+      <td>{{ row[1] }}</td>
+      <th>{{ row[2] }}</th>
+      <td>{{ row[3] }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+  <!-- <div class="section-title">2. ANALYSIS RESULTS</div>
+  <table class="metric-table">
+    <tbody>
+      {% for row in result_main_rows %}
+      <tr>
+        <th>{{ row.label }}</th>
+        <td>{{ row.value }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <table>
+    <tbody>
+      {% for row in result_stats_rows %}
+      <tr>
+        <th>{{ row.label }}</th>
+        <td>{{ row.value }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table> -->
+
+  <div class="section-title">THICKNESS DISTRIBUTION</div>
+  <!-- <table>
+    <tbody>
+      {% for row in distribution_rows %}
+      <tr>
+        <th>{{ row.label }}</th>
+        <td>{{ row.value }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table> -->
+  {% if chart_path %}
+  <div class="chart-container">
+    <img class="chart" src="{{ chart_path }}" alt="Distribution Chart" />
+  </div>
+  {% endif %}
+
+  <!-- {% if segment_notes %}
+  <div class="section-title">4. SEGMENT NOTES</div>
+  <div class="notes-block">
+    {% for note in segment_notes %}
+    <div>
+      <div class="note-title">{{ note.layer_name }}</div>
+      <div>{{ note.text | e | replace("\n", "<br/>") | safe }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %} -->
+
+  <div class="section-title">TUNNEL VIEW</div>
+  
+  {% if layer_name %}
+    <div class="layer-info" style="font-weight: 500; margin: 6px 0;">      
+      Segment name: {{ layer_name }}
+    </div>
+  {% endif %}
+  {% if screenshot_path %}
+    <div class="screenshot-block">
+      <img class="screenshot" src="{{ screenshot_path }}" alt="Report Screenshot" />
+    </div>
+  {% endif %}
+
+    <!-- FOOTER -->
+  <div class="footer" style="margin-top: 30px;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+
+          <!-- LEFT: Signature block -->
+          <div style="width: 45%;">
+              <div style="border-top: 1px solid #000; height: 10px; margin-bottom: 5px;"></div>
+              <div style="font-size: 14px; text-align: left; padding-bottom: 60px;">
+                  Authorized Signature
+              </div>
+
+              <div style="margin-top: 10px; border-top: 1px dashed #777; width: 70%;">
+                  <span style="font-size: 13px; color: #333;"></span>
+              </div>
+          </div>
+
+          <!-- RIGHT: Date -->
+          <div style="text-align: right; font-size: 12px; color: #777;">
+              Created Date: {{ current_date }}
+          </div>
+
+      </div>
+  </div>
+</body>
+</html>
+)
+---
+
+# Keyboard Shortcuts
+
+Ctrl + O    Open File
+
+Ctrl + E    Export PDF
+
+Ctrl + Q    Exit
+
+Ctrl + A    Select All
+
+Delete      Delete Selection
+
+Esc         Cancel Current Tool
+
+R           Reset View
+
+T           Top View
+
+F           Front View
+
+S           Side View
+
+---
+
+# Performance Requirements
+
+Load
+
+20 million points
+
+Target
+
+< 5 seconds
+
+Viewer
+
+Minimum 30 FPS during interaction.
+
+Avoid duplicated point cloud data in memory.
+
+---
+
+# Coding Rules
+
+General
+
+- Use C++20.
+- Use Qt6.
+- Use CMake.
+- Follow SOLID principles.
+- Follow Single Responsibility Principle.
+- Prefer composition over inheritance.
+- Keep code simple and readable.
+- Avoid duplicated code.
+
+Memory
+
+- Never use raw new/delete.
+- Prefer std::unique_ptr.
+- Use std::shared_ptr only when ownership is shared.
+
+Headers
+
+- Keep includes minimal.
+- Use forward declarations whenever possible.
+- Never use "using namespace" inside headers.
+
+Classes
+
+- One class = one responsibility.
+- Keep classes under approximately 500 lines when possible.
+
+Functions
+
+- One function = one responsibility.
+- Keep functions under approximately 50 lines when possible.
+- Avoid deep nesting.
+- Extract helper functions when needed.
+
+Naming
+
+Classes
+
+PascalCase
+
+Example
+
+PointCloud
+Viewer3D
+PolygonTool
+
+Functions
+
+camelCase
+
+Example
+
+loadFile()
+calculateVolume()
+updateRenderer()
+
+Variables
+
+camelCase
+
+Constants
+
+kDefaultPointSize
+
+Comments
+
+- Explain WHY.
+- Do not explain obvious code.
+
+Logging
+
+- Use one logging system.
+- Do not use printf().
+- Do not use std::cout.
+
+Error Handling
+
+- Never fail silently.
+- Return meaningful error information.
+- Throw exceptions only for unrecoverable errors.
+
+---
+
+# Architecture Rules
+
+MainWindow
+
+- Coordinates UI only.
+- Never performs calculations.
+
+Scene
+
+- Owns all project data.
+
+Renderer
+
+- Renders only.
+- Never modifies data.
+
+Algorithms
+
+- Perform calculations only.
+- Never access UI.
+
+Tools
+
+- Handle user interaction only.
+
+IO
+
+- Read and write files only.
+
+---
+
+# AI Coding Rules
+
+When generating code
+
+- Always follow the existing architecture.
+- Never rewrite unrelated files.
+- Never change public APIs unless requested.
+- Generate production-quality code.
+- Generate compilable code.
+- Avoid placeholder implementations.
+- Avoid TODO comments unless requested.
+- Ask before introducing new dependencies.
+- Prefer reusable components.
+- Minimize coupling.
+- Maximize readability.
+- Keep changes as small as possible.
+- Explain only non-obvious design decisions.
+
+If a class becomes too large
+
+Split it into smaller classes.
+
+If architecture changes are required
+
+Ask for confirmation before making them.
+
+---
+
+# Recommended Project Structure
+
+src/
+
+app/
+ui/
+scene/
+renderer/
+algorithms/
+tools/
+io/
+report/
+utils/
+
+include/
+
+resources/
+
+docs/
+
+tests/
+
+---
+
+# Future Extension
+
+The architecture shall allow future support for
+
+- Multiple point clouds
+- Mesh visualization
+- Plugin system
+- Undo / Redo
+- Multiple synchronized 3D views
+- Batch processing
+- Localization
+- Additional file formats (LAS, E57, PCD)
+- GPU acceleration

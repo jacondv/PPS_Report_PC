@@ -10,7 +10,7 @@ import json
 from matplotlib import container
 import numpy as np
 from typing import Optional
-from PyQt5 import uic
+
 from PyQt5.QtWidgets import (
     QFrame, QLineEdit, QMainWindow, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QToolBar, QAction, QFileDialog, QMessageBox, QGroupBox,
@@ -27,7 +27,6 @@ if not getattr(sys, 'frozen', False):
     # Chỉ chạy khi là source, không phải exe
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from gui.ui.main_window_ui import Ui_MainWindow
 
 from gui.help import HotkeysDialog
 from gui.viewer_3d import PointCloudViewer
@@ -74,10 +73,9 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        uic.loadUi("C:\WORK\projects\PPS_Report_PC\qt\main_window.ui", self)
-        # self.setupUi(self)
-        self.viewer = PointCloudViewer()
-        self.settings = QSettings('TunnelAnalyzer', 'TunnelConcreteThicknessAnalyzer')
+        self.setWindowTitle("Tunnel Concrete Thickness Analyzer")
+        self.setGeometry(100, 100, 1440, 900)
+
         # Data
         self.layer_manager   = LayerManager()
         self.project_info: Optional[ProjectInfo] = None
@@ -91,82 +89,14 @@ class MainWindow(QMainWindow):
         # Settings
         self.target_min = 50.0
         self.target_max = 150.0
-        self._connect_signals()
-        self.splitter.addWidget(self.viewer)
-        # self._setup_ui()
-        # self._setup_menubar()
-        # self._setup_toolbar()
-        # self._setup_statusbar()
+        self._setup_ui()
+        self._setup_menubar()
+        self._setup_toolbar()
+        self._setup_statusbar()
 
-        
+        self.settings = QSettings('TunnelAnalyzer', 'TunnelConcreteThicknessAnalyzer')
         self._load_settings()
 
-
-    def _connect_signals(self):
-        self.spin_point_size.valueChanged.connect(self.viewer.set_point_size)
-        self.cmb_colormap.currentTextChanged.connect(self.viewer.set_colormap)
-
-
-        
-        self.btn_calculate.clicked.connect(self._on_calculate)
-        self.btn_export_pdf.clicked.connect(self._on_export_pdf)
-
-        self.btn_select_range.clicked.connect(self._on_select_by_range)
-
-        self.viewer.signals.selection_changed.connect(self._on_selection_changed)
-        self.viewer.signals.selection_cleared.connect(self._on_selection_cleared)
-        self.viewer.signals.polygon_mode_ended.connect(self._on_polygon_mode_ended)
-        self.viewer.signals.annotation_added.connect(self._on_annotation_added)
-
-        self.spin_point_size.valueChanged.connect(self.viewer.set_point_size)
-        self.cmb_colormap.currentTextChanged.connect(self.viewer.set_colormap)
-
-
-        # left_panel
-        self.target_min = self.settings.value('target_min', 50.0, type=float)
-        self.target_max = self.settings.value('target_max', 150.0, type=float)
-        self.spin_target_min.setValue(self.target_min)
-        self.spin_target_max.setValue(self.target_max)
-        self.spin_target_min.valueChanged.connect(self._on_target_changed)
-        self.spin_target_max.valueChanged.connect(self._on_target_changed)
-
-        # segment_panel
-        self.spin_sel_min.setRange(-9999, 99999); self.spin_sel_min.setValue(75)
-        self.spin_sel_max.setRange(-9999, 99999); self.spin_sel_max.setValue(125)
-
-        self.list_layers.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.list_layers.customContextMenuRequested.connect(self._on_layer_context_menu)
-        self.list_layers.itemChanged.connect(self._on_layer_item_changed)
-        self.list_layers.currentItemChanged.connect(self._on_layer_selected)
-
-        self.btn_polygon.toggled.connect(self._on_polygon_toggled)
-        self.btn_add_seg.clicked.connect(self._on_add_segment)
-
-        self.btn_clear_sel.clicked.connect(self._on_clear_selection)
-
-
-        # Menubar actions
-        self.actionOpen.triggered.connect(self._on_open_file)
-        self.actionExportPdf.triggered.connect(self._on_export_pdf)
-        self.actionExit.triggered.connect(self.close)
-
-            
-        for _action, fn in [
-            (self.actionTopView,   self.viewer.view_top),
-            (self.actionBottomView, self.viewer.view_bottom),
-            (self.actionFrontView, self.viewer.view_front),
-            (self.actionBackView, self.viewer.view_back),
-            (self.actionRightView, self.viewer.view_right),
-            (self.actionLeftView,  self.viewer.view_left),
-            (self.actionIsoView,   self.viewer.view_iso),
-        ]:
-            _action.triggered.connect(fn)
-        
-        #Toolbar connections
-        self.actionToolbarOpen.triggered.connect(self._on_open_file)
-        self.actionResetView.triggered.connect(self.viewer.reset_view)
-        self.actionToolbarCalculate.triggered.connect(self._on_calculate)
-        self.actionToolbarExport.triggered.connect(self._on_export_pdf)
 
     # ================================================================== UI
     def _setup_ui(self):
@@ -194,6 +124,8 @@ class MainWindow(QMainWindow):
 
 
         lay.addWidget(sp)
+
+
 
     # ------------------------------------------------------------------ left panel
     def _create_left_panel(self) -> QWidget:
@@ -522,11 +454,9 @@ class MainWindow(QMainWindow):
             # Load job info
             dir_path = os.path.dirname(filepath)
             job_info_path = os.path.join(dir_path, 'job_info.json')
-            
             if os.path.exists(job_info_path):
                 with open(job_info_path, 'r') as f:
                     job_info = json.load(f)
-                    print(f"Loaded job info: {job_info}")
                 target_thickness = job_info.get('parameters', {}).get('target_thickness', 30)
                 tolerance = job_info.get('parameters', {}).get('tolerance', 10)
                 min_target = target_thickness - tolerance
@@ -643,7 +573,6 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ layer context menu
     def _on_layer_context_menu(self, pos: QPoint):
-        print(f"[DEBUG] Context menu requested at {pos}")
         item = self.list_layers.itemAt(pos)
         if item is None:
             return
@@ -659,7 +588,7 @@ class MainWindow(QMainWindow):
         act_calc     = menu.addAction("📊  Calculate for this layer")
         act_export   = menu.addAction("📄  Export PDF for this layer")
         menu.addSeparator()
-        # act_note     = menu.addAction("�  Annotate this layer")
+        act_note     = menu.addAction("�  Annotate this layer")
         act_rename   = menu.addAction("✏  Rename")
         if not layer.is_original:
             menu.addSeparator()
@@ -680,8 +609,8 @@ class MainWindow(QMainWindow):
             self._calc_and_export_layer(layer)
         elif chosen == act_rename:
             self._rename_layer(name, item)
-        # elif chosen == act_note:
-        #     self._annotate_layer(layer, item)
+        elif chosen == act_note:
+            self._annotate_layer(layer, item)
         elif act_delete and chosen == act_delete:
             self._delete_layer(name)
 

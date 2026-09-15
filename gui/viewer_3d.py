@@ -661,6 +661,8 @@ class PointCloudViewer(QWidget):
         mask = (all_dists >= min_d) & (all_dists <= max_d)
         self.sel_points    = all_pts[mask]
         self.sel_distances = all_dists[mask]
+        print(f"[select_by_distance_range] Selected {len(self.sel_points)} points in range [{min_d}, {max_d}]")
+        print(f"[select_by_distance_range] Selected distances: {self.sel_distances}")
         self._show_selection_highlight(self.sel_points)
         self.signals.selection_changed.emit(self.sel_points, self.sel_distances)
 

@@ -1,4 +1,27 @@
 """
+main_window.py
+---------------
+File LOGIC của ứng dụng. Toàn bộ giao diện (widget, layout, menu, toolbar,
+statusbar) nằm trong main_window.ui và được mở/sửa bằng Qt Designer.
+
+File này CHỈ làm 2 việc:
+  1. Nạp main_window.ui bằng uic.loadUi(...)
+  2. Connect signal/slot + xử lý nghiệp vụ (giữ nguyên logic gốc)
+
+LƯU Ý quan trọng khi chỉnh sửa main_window.ui bằng Qt Designer:
+  - KHÔNG đổi objectName của các widget đang được dùng trong file .py này
+    (vd: lbl_filename, spin_target_min, list_layers, viewer, btn_calculate...).
+    Nếu đổi tên trong Designer thì phải sửa lại tên tương ứng trong file .py.
+  - Widget "viewer" trong .ui đã được khai báo là custom widget (promoted)
+    với class PointCloudViewer, header "pointcloud_viewer". Hãy đảm bảo:
+      + Bạn có file pointcloud_viewer.py chứa class PointCloudViewer
+      + Hoặc trong Qt Designer: chuột phải vào widget "viewer" -> Promote to...
+        rồi điền đúng tên class/đường dẫn module của bạn.
+  - Có thể thêm/sửa widget mới trong Designer thoải mái, miễn giữ đúng
+    objectName của các widget đã có ở trên.
+"""
+
+"""
 Main application window — Tunnel Concrete Thickness Analyzer.
 Layer-based architecture: original cloud + independent segments.
 Report always uses only the visible layers.
@@ -10,6 +33,7 @@ import json
 from matplotlib import container
 import numpy as np
 from typing import Optional
+
 from PyQt5 import uic
 from PyQt5.QtWidgets import (
     QFrame, QLineEdit, QMainWindow, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
@@ -27,7 +51,6 @@ if not getattr(sys, 'frozen', False):
     # Chỉ chạy khi là source, không phải exe
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from gui.ui.main_window_ui import Ui_MainWindow
 
 from gui.help import HotkeysDialog
 from gui.viewer_3d import PointCloudViewer
@@ -40,44 +63,17 @@ from core.calculator import (
 )
 # from report.pdf_generator import generate_report
 
-
-# ============================================================ background worker
-class CalculationWorker(QThread):
-    finished = pyqtSignal(object, object)
-    error    = pyqtSignal(str)
-    progress = pyqtSignal(int)
-
-    def __init__(self, points, distances, target_min, target_max):
-        super().__init__()
-        self.points      = points
-        self.distances   = distances
-        self.target_min  = target_min
-        self.target_max  = target_max
-
-    def run(self):
-        try:
-            self.progress.emit(10)
-            calc = calculate_area_and_volume(self.points, self.distances, target_min=self.target_min)
-            self.progress.emit(70)
-            dist = calculate_thickness_distribution(
-                self.distances, self.target_min, self.target_max)
-            self.progress.emit(100)
-            self.finished.emit(calc, dist)
-            print("Calculation completed successfully.")
-        except Exception as e:
-            self.error.emit(str(e))
-            
+UI_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "main_window.ui")
 
 
-# ============================================================ main window
 class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        uic.loadUi("C:\WORK\projects\PPS_Report_PC\qt\main_window.ui", self)
-        # self.setupUi(self)
-        self.viewer = PointCloudViewer()
-        self.settings = QSettings('TunnelAnalyzer', 'TunnelConcreteThicknessAnalyzer')
+
+        # ---- Nạp giao diện từ file .ui ----
+        uic.loadUi(UI_FILE, self)
+
         # Data
         self.layer_manager   = LayerManager()
         self.project_info: Optional[ProjectInfo] = None
@@ -91,28 +87,17 @@ class MainWindow(QMainWindow):
         # Settings
         self.target_min = 50.0
         self.target_max = 150.0
-        self._connect_signals()
-        self.splitter.addWidget(self.viewer)
-        # self._setup_ui()
-        # self._setup_menubar()
-        # self._setup_toolbar()
-        # self._setup_statusbar()
 
-        
+        self._connect_signals()
+
+        self.statusbar.showMessage("Ready — Please open a PLY file")
+
+        self.settings = QSettings('TunnelAnalyzer', 'TunnelConcreteThicknessAnalyzer')
         self._load_settings()
 
-
+    # ================================================================== connect signals
     def _connect_signals(self):
-        self.spin_point_size.valueChanged.connect(self.viewer.set_point_size)
-        self.cmb_colormap.currentTextChanged.connect(self.viewer.set_colormap)
-
-
-        
-        self.btn_calculate.clicked.connect(self._on_calculate)
-        self.btn_export_pdf.clicked.connect(self._on_export_pdf)
-
-        self.btn_select_range.clicked.connect(self._on_select_by_range)
-
+        # ---- viewer (custom widget "viewer" promoted thành PointCloudViewer) ----
         self.viewer.signals.selection_changed.connect(self._on_selection_changed)
         self.viewer.signals.selection_cleared.connect(self._on_selection_cleared)
         self.viewer.signals.polygon_mode_ended.connect(self._on_polygon_mode_ended)
@@ -121,375 +106,50 @@ class MainWindow(QMainWindow):
         self.spin_point_size.valueChanged.connect(self.viewer.set_point_size)
         self.cmb_colormap.currentTextChanged.connect(self.viewer.set_colormap)
 
-
-        # left_panel
-        self.target_min = self.settings.value('target_min', 50.0, type=float)
-        self.target_max = self.settings.value('target_max', 150.0, type=float)
-        self.spin_target_min.setValue(self.target_min)
-        self.spin_target_max.setValue(self.target_max)
+        # ---- left panel ----
         self.spin_target_min.valueChanged.connect(self._on_target_changed)
         self.spin_target_max.valueChanged.connect(self._on_target_changed)
 
-        # segment_panel
-        self.spin_sel_min.setRange(-9999, 99999); self.spin_sel_min.setValue(75)
-        self.spin_sel_max.setRange(-9999, 99999); self.spin_sel_max.setValue(125)
+        # ---- segment panel ----
+        self.btn_select_range.clicked.connect(self._on_select_by_range)
+        self.btn_polygon.toggled.connect(self._on_polygon_toggled)
+        self.btn_add_seg.clicked.connect(self._on_add_segment)
+        self.btn_clear_sel.clicked.connect(self._on_clear_selection)
 
         self.list_layers.setContextMenuPolicy(Qt.CustomContextMenu)
         self.list_layers.customContextMenuRequested.connect(self._on_layer_context_menu)
         self.list_layers.itemChanged.connect(self._on_layer_item_changed)
         self.list_layers.currentItemChanged.connect(self._on_layer_selected)
 
-        self.btn_polygon.toggled.connect(self._on_polygon_toggled)
-        self.btn_add_seg.clicked.connect(self._on_add_segment)
+        self.btn_calculate.clicked.connect(self._on_calculate)
+        self.btn_export_pdf.clicked.connect(self._on_export_pdf)
 
-        self.btn_clear_sel.clicked.connect(self._on_clear_selection)
-
-
-        # Menubar actions
+        # ---- menu actions ----
         self.actionOpen.triggered.connect(self._on_open_file)
         self.actionExportPdf.triggered.connect(self._on_export_pdf)
         self.actionExit.triggered.connect(self.close)
 
-            
-        for _action, fn in [
-            (self.actionTopView,   self.viewer.view_top),
-            (self.actionBottomView, self.viewer.view_bottom),
-            (self.actionFrontView, self.viewer.view_front),
-            (self.actionBackView, self.viewer.view_back),
-            (self.actionRightView, self.viewer.view_right),
-            (self.actionLeftView,  self.viewer.view_left),
-            (self.actionIsoView,   self.viewer.view_iso),
-        ]:
-            _action.triggered.connect(fn)
-        
-        #Toolbar connections
+        self.actionTopView.triggered.connect(self.viewer.view_top)
+        self.actionBottomView.triggered.connect(self.viewer.view_bottom)
+        self.actionFrontView.triggered.connect(self.viewer.view_front)
+        self.actionBackView.triggered.connect(self.viewer.view_back)
+        self.actionRightView.triggered.connect(self.viewer.view_right)
+        self.actionLeftView.triggered.connect(self.viewer.view_left)
+        self.actionIsoView.triggered.connect(self.viewer.view_iso)
+
+        self.actionAbout.triggered.connect(self._show_about)
+        self.actionHotkeys.triggered.connect(self._show_hotkeys)
+
+        # ---- toolbar actions ----
         self.actionToolbarOpen.triggered.connect(self._on_open_file)
         self.actionResetView.triggered.connect(self.viewer.reset_view)
         self.actionToolbarCalculate.triggered.connect(self._on_calculate)
         self.actionToolbarExport.triggered.connect(self._on_export_pdf)
 
-    # ================================================================== UI
-    def _setup_ui(self):
-        c = QWidget()
-        self.setCentralWidget(c)
-        lay = QHBoxLayout(c)
-        lay.setContentsMargins(1, 1, 1, 1)
-
-        sp = QSplitter(Qt.Horizontal)
-        sp.addWidget(self._create_left_panel())
-        sp.addWidget(self._create_segment_panel())
-
-        self.viewer = PointCloudViewer()
-        self.viewer.signals.selection_changed.connect(self._on_selection_changed)
-        self.viewer.signals.selection_cleared.connect(self._on_selection_cleared)
-        self.viewer.signals.polygon_mode_ended.connect(self._on_polygon_mode_ended)
-        self.viewer.signals.annotation_added.connect(self._on_annotation_added)
-        # Connect visualization controls that need viewer (created after left panel)
-        self.spin_point_size.valueChanged.connect(self.viewer.set_point_size)
-        self.cmb_colormap.currentTextChanged.connect(self.viewer.set_colormap)
-        sp.addWidget(self.viewer)
-
-        sp.addWidget(self._create_right_panel())
-        sp.setSizes([280, 260, 620, 280])
-
-
-        lay.addWidget(sp)
-
-    # ------------------------------------------------------------------ left panel
-    def _create_left_panel(self) -> QWidget:
-        panel = QWidget()
-        panel.setObjectName("left_panel")
-        panel.setStyleSheet("""
-            QWidget#left_panel {
-                border: 1px solid #d0d7de;
-                border-radius: 0px;
-            }
-        """)
-        panel.setMinimumWidth(260)
-        panel.setMaximumWidth(360)
-        lay = QVBoxLayout(panel)
-        lay.setSpacing(8)
-
-        # ---- File info ----
-        fg = QGroupBox("File Information")
-        fl = QFormLayout(fg)
-
-        self.lbl_filename = QLineEdit("File is not loaded yet")
-        self.lbl_filename.setReadOnly(True)
-        self.lbl_filename.setStyleSheet("""
-            QLineEdit {
-                border: none;
-                background: transparent;
-                padding: 0px;
-            }
-        """)
-        self.lbl_project  = QLabel("-")
-        self.lbl_job      = QLabel("-")
-        self.lbl_time     = QLabel("-")
-        fl.addRow("File:",      self.lbl_filename)
-        fl.addRow("Project:",   self.lbl_project)
-        fl.addRow("Job:",       self.lbl_job)
-        fl.addRow("Time:",      self.lbl_time)
-        lay.addWidget(fg)
-
-        # ---- Settings ----
-        sg = QGroupBox("Analysis Settings")
-        sl = QFormLayout(sg)
-
-        self.cmb_dist_field = QComboBox()
-        self.cmb_dist_field.addItem("distances")
-        sl.addRow("Thickness Field:", self.cmb_dist_field)
-
-        self.spin_target_min = QDoubleSpinBox()
-        self.spin_target_min.setRange(0, 9999); self.spin_target_min.setValue(self.target_min)
-        self.spin_target_min.setSuffix(" mm")
-        sl.addRow("Min target thickness:", self.spin_target_min)
-
-        self.spin_target_max = QDoubleSpinBox()
-        self.spin_target_max.setRange(0, 9999); self.spin_target_max.setValue(self.target_max)
-        self.spin_target_max.setSuffix(" mm")
-        sl.addRow("Max target thickness:", self.spin_target_max)
-
-        # Connect target changes
-        self.spin_target_min.valueChanged.connect(self._on_target_changed)
-        self.spin_target_max.valueChanged.connect(self._on_target_changed)
-
-        lay.addWidget(sg)
-
-        # ---- Visualization ----
-        vg = QGroupBox("Visualization")
-        vl = QFormLayout(vg)
-
-        self.spin_point_size = QSpinBox()
-        self.spin_point_size.setRange(1, 10); self.spin_point_size.setValue(1)
-        vl.addRow("Point Size:", self.spin_point_size)
-
-        self.cmb_colormap = QComboBox()
-        self.cmb_colormap.addItems(['jet', 'viridis', 'plasma', 'coolwarm', 'rainbow'])
-        self.cmb_colormap.hide()
-        # vl.addRow("Colormap:", self.cmb_colormap)
-        lay.addWidget(vg)
-        lay.addStretch()
-        return panel
-
-    # ------------------------------------------------------------------ segment panel
-    def _create_segment_panel(self) -> QWidget:
-        panel = QWidget()
-        panel.setObjectName("segment_panel")
-        panel.setStyleSheet("""
-            QWidget#segment_panel {
-                border: 1px solid #d0d7de;
-                border-radius: 0px;
-            }
-        """)
-        panel.setMinimumWidth(260)
-        panel.setMaximumWidth(360)
-        lay = QVBoxLayout(panel)
-        lay.setSpacing(10)
-
-        sel_box = QGroupBox("Create Segment Tools")
-        sel_lay = QVBoxLayout(sel_box)
-
-        rr = QHBoxLayout()
-        self.spin_sel_min = QDoubleSpinBox()
-        self.spin_sel_min.setRange(-9999, 99999); self.spin_sel_min.setValue(75)
-        self.spin_sel_max = QDoubleSpinBox()
-        self.spin_sel_max.setRange(-9999, 99999); self.spin_sel_max.setValue(100)
-        rr.addWidget(QLabel("From:")); rr.addWidget(self.spin_sel_min)
-        rr.addWidget(QLabel("To:")); rr.addWidget(self.spin_sel_max)
-        sel_lay.addLayout(rr)
-
-        btn_range = QPushButton("📏 Select by Thickness")
-        btn_range.clicked.connect(self._on_select_by_range)
-        sel_lay.addWidget(btn_range)
-        lay.addWidget(sel_box)
-
-        self.btn_polygon = QPushButton("🖊 Select Polygon")
-        self.btn_polygon.setCheckable(True)
-        self.btn_polygon.setMinimumHeight(32)
-        self.btn_polygon.setToolTip("Draw an area to select points")
-        self.btn_polygon.toggled.connect(self._on_polygon_toggled)
-        sel_lay.addWidget(self.btn_polygon)
-
-
-        self.lbl_sel_count = QLabel("No selection")
-        self.lbl_sel_count.setStyleSheet("color:#2c5282; font-weight:bold; font-size:10px;")
-        lay.addWidget(self.lbl_sel_count)
-
-
-        self.btn_add_seg = QPushButton("✅ Create Segment")
-        self.btn_add_seg.clicked.connect(self._on_add_segment)
-        self.btn_clear_sel = QPushButton("❌ Clear Selection")
-        self.btn_clear_sel.clicked.connect(self._on_clear_selection)
-        sel_lay.addWidget(self.btn_add_seg)
-        sel_lay.addWidget(self.btn_clear_sel)
-
-        layer_box = QGroupBox("Layer Manager")
-        layer_box.setStyleSheet("QGroupBox { margin-top: 10px; }")
-        layer_layout = QVBoxLayout(layer_box)
-
-        hint = QLabel("☑ Hide/Show  |  Right-click → Options")
-        hint.setStyleSheet("color:#718096; font-size:9px;")
-        layer_layout.addWidget(hint)
-
-        self.list_layers = QListWidget()
-        self.list_layers.setMinimumHeight(18)
-        self.list_layers.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.list_layers.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.list_layers.customContextMenuRequested.connect(self._on_layer_context_menu)
-        self.list_layers.itemChanged.connect(self._on_layer_item_changed)
-        self.list_layers.currentItemChanged.connect(self._on_layer_selected)
-        layer_layout.addWidget(self.list_layers)
-        self.lbl_current_layer = QLabel("")
-        self.lbl_current_layer.setStyleSheet("color:#2c5282; font-weight:bold; font-size:14px;")
-        layer_layout.addWidget(self.lbl_current_layer)
-        lay.addWidget(layer_box)
-
-
-
-        action_box = QGroupBox("Actions")
-        action_layout = QVBoxLayout(action_box)
-
-        # row_add = QHBoxLayout()
-
-        # row_add.addWidget(self.btn_add_seg)
-        # row_add.addWidget(self.btn_clear_sel)
-        # action_layout.addLayout(row_add)
-
-        note = QLabel("Calculation and PDF export only use visible layers (☑).")
-        note.setWordWrap(True)
-        note.setStyleSheet("color:#718096; font-size:9px;")
-        action_layout.addWidget(note)
-
-        self.btn_calculate = QPushButton("📊 Calculate")
-        self.btn_calculate.setMinimumHeight(40)
-        self.btn_calculate.clicked.connect(self._on_calculate)
-        action_layout.addWidget(self.btn_calculate)
-
-        self.btn_export_pdf = QPushButton("📄 PDF Report")
-        self.btn_export_pdf.setMinimumHeight(40)
-        self.btn_export_pdf.clicked.connect(self._on_export_pdf)
-        action_layout.addWidget(self.btn_export_pdf)
-
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        action_layout.addWidget(self.progress_bar)
-
-        lay.addWidget(action_box)
-        lay.addStretch()
-        return panel
-
-    # ------------------------------------------------------------------ right panel
-    def _create_right_panel(self) -> QWidget:
-        panel = QWidget()
-
-        panel.setMinimumWidth(10)
-        panel.setMaximumWidth(360)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        content = QWidget()
-        lay = QVBoxLayout(content)
-        lay.setSpacing(10)
-       
-
-        # Results
-        rg = QGroupBox("Analysis Results")
-        rl = QFormLayout(rg)
-        bold = QFont("Arial", 12, QFont.Bold)
-
-        self.lbl_area           = QLabel("-"); self.lbl_area.setFont(bold)
-        self.lbl_target_coverage  = QLabel("-"); self.lbl_target_coverage.setFont(bold)
-        self.lbl_volume         = QLabel("-"); self.lbl_volume.setFont(bold)
-        self.lbl_mean_thickness = QLabel("-"); self.lbl_mean_thickness.setFont(bold)
-        self.lbl_min_thickness  = QLabel("-")
-        self.lbl_max_thickness  = QLabel("-")
-        self.lbl_std_thickness  = QLabel("-")
-        self.lbl_num_points     = QLabel("-")
-        rl.addRow("Surface Area (m²):",   self.lbl_area)
-        rl.addRow("Target Coverage (m²):", self.lbl_target_coverage)
-        rl.addRow("Volume (m³):",    self.lbl_volume)
-        rl.addRow("Mean Thickness (mm):",   self.lbl_mean_thickness)
-        rl.addRow("Min Thickness (mm):",  self.lbl_min_thickness)
-        rl.addRow("Max Thickness (mm):",  self.lbl_max_thickness)
-        rl.addRow("Standard Deviation:",    self.lbl_std_thickness)
-        rl.addRow("Number of Points:",          self.lbl_num_points)
-        lay.addWidget(rg)
-
-        # Distribution
-        dg = QGroupBox("Thickness Distribution")
-        dl = QVBoxLayout(dg)
-        self.lbl_below  = QLabel("-"); self.lbl_below.setStyleSheet("color:#c53030;font-weight:bold;")
-        self.lbl_within = QLabel("-"); self.lbl_within.setStyleSheet("color:#276749;font-weight:bold;")
-        self.lbl_above  = QLabel("-"); self.lbl_above.setStyleSheet("color:#315aff;font-weight:bold;")
-        dl.addWidget(QLabel("Below Target:")); dl.addWidget(self.lbl_below)
-        dl.addWidget(QLabel("Within Target:"));  dl.addWidget(self.lbl_within)
-        dl.addWidget(QLabel("Above Target:")); dl.addWidget(self.lbl_above)
-        lay.addWidget(dg)
-
-        lay.addStretch()
-        scroll.setWidget(content)
-        pl = QVBoxLayout(panel)
-        pl.setContentsMargins(0, 0, 0, 0)
-        pl.addWidget(scroll)
-        return panel
-
-    # ------------------------------------------------------------------ menu / toolbar
-    def _setup_menubar(self):
-        mb = self.menuBar()
-        fm = mb.addMenu("File")
-        for label, shortcut, fn in [
-            ("Open PLY File…",       "Ctrl+O", self._on_open_file),
-            ("Export PDF Report…",  "Ctrl+E", self._on_export_pdf),
-            ("Exit",              "Ctrl+Q", self.close),
-        ]:
-            a = QAction(label, self); a.setShortcut(shortcut); a.triggered.connect(fn)
-            if label == "Exit":
-                fm.addSeparator()
-            fm.addAction(a)
-
-        vm = mb.addMenu("View")
-        for label, key, fn in [
-            ("Top View",   "T", self.viewer.view_top),
-            ("Bottom View", "G", self.viewer.view_bottom),
-            ("Front View", "F", self.viewer.view_front),
-            ("Back View", "B", self.viewer.view_back),
-            ("Right View", "R", self.viewer.view_right),
-            ("Left View",  "L", self.viewer.view_left),
-            ("Iso View",   "I", self.viewer.view_iso),
-        ]:
-            a = QAction(label, self); a.setShortcut(key); a.triggered.connect(fn)
-            vm.addAction(a)
-
-        hm = mb.addMenu("Help")
-        ab = QAction("About", self); ab.triggered.connect(self._show_about)
-        hm.addAction(ab)
-
-        hotkeys = hm.addAction("Keyboard Shortcuts")
-        hotkeys.triggered.connect(self._show_hotkeys)
-
-    def _setup_toolbar(self):
-        tb = QToolBar("Main"); tb.setIconSize(QSize(24, 24))
-        self.addToolBar(tb)
-        for label, fn in [
-            ("Open File",    self._on_open_file),
-            ("Reset View", self.viewer.reset_view),
-            ("Calculate",  self._on_calculate),
-            ("Export PDF",   self._on_export_pdf),
-        ]:
-            a = QAction(label, self); a.triggered.connect(fn)
-            tb.addAction(a); tb.addSeparator()
-
-    def _setup_statusbar(self):
-        self.statusbar = QStatusBar()
-        self.setStatusBar(self.statusbar)
-        self.statusbar.showMessage("Ready — Please open a PLY file")
-
-
     def _show_hotkeys(self):
         dlg = HotkeysDialog(self)
         dlg.exec_()
+
     # ================================================================== file
     def _on_open_file(self):
         fp, _ = QFileDialog.getOpenFileName(
@@ -506,27 +166,21 @@ class MainWindow(QMainWindow):
             self.statusbar.showMessage(f"Loading: {filepath}…")
 
             fields = get_ply_fields(filepath)
-            self.cmb_dist_field.clear()
-            self.cmb_dist_field.addItems(fields)
+            self.ui.cmb_dist_field.clear()
+            self.ui.cmb_dist_field.addItems(fields)
             for f in ('distances', 'distance', 'thickness', 'scalar_distances'):
                 if f in fields:
-                    self.cmb_dist_field.setCurrentText(f); break
+                    self.ui.cmb_dist_field.setCurrentText(f); break
 
-            cloud_data = load_ply(filepath, self.cmb_dist_field.currentText())
-            # dists = cloud_data.distances
-            # dists = np.where(dists <= -20, np.abs(dists), dists)
-            # dists = np.where((dists > -20) & (dists < 20), 0, dists)
-            # cloud_data.distances = dists
+            cloud_data = load_ply(filepath, self.ui.cmb_dist_field.currentText())
             self.project_info = parse_filename(filepath)
 
             # Load job info
             dir_path = os.path.dirname(filepath)
             job_info_path = os.path.join(dir_path, 'job_info.json')
-            
             if os.path.exists(job_info_path):
                 with open(job_info_path, 'r') as f:
                     job_info = json.load(f)
-                    print(f"Loaded job info: {job_info}")
                 target_thickness = job_info.get('parameters', {}).get('target_thickness', 30)
                 tolerance = job_info.get('parameters', {}).get('tolerance', 10)
                 min_target = target_thickness - tolerance
@@ -537,15 +191,15 @@ class MainWindow(QMainWindow):
 
             # Set thickness targets in viewer
             self.viewer.set_thickness_targets(min_target, max_target)
-            self.spin_target_min.setValue(min_target)
-            self.spin_target_max.setValue(max_target)
+            self.ui.spin_target_min.setValue(min_target)
+            self.ui.spin_target_max.setValue(max_target)
 
             # Reset everything
             self.layer_manager.clear()
             self.viewer.clear_all_layers()
-            self.list_layers.blockSignals(True)
-            self.list_layers.clear()
-            self.list_layers.blockSignals(False)
+            self.ui.list_layers.blockSignals(True)
+            self.ui.list_layers.clear()
+            self.ui.list_layers.blockSignals(False)
             self._clear_results()
             self._reset_selection()
 
@@ -629,21 +283,15 @@ class MainWindow(QMainWindow):
             layer.visible = visible
         self.viewer.set_layer_visible(name, visible)
 
-
-
-
     def _on_layer_selected(self, current: QListWidgetItem, previous: QListWidgetItem):
-  
+        if current is None:
+            return
         self.viewer._set_tool_buttons_enabled(True)
         name = current.data(Qt.UserRole)
         self.viewer.set_annotation_layer(name)
 
-
-
-
     # ------------------------------------------------------------------ layer context menu
     def _on_layer_context_menu(self, pos: QPoint):
-        print(f"[DEBUG] Context menu requested at {pos}")
         item = self.list_layers.itemAt(pos)
         if item is None:
             return
@@ -659,7 +307,7 @@ class MainWindow(QMainWindow):
         act_calc     = menu.addAction("📊  Calculate for this layer")
         act_export   = menu.addAction("📄  Export PDF for this layer")
         menu.addSeparator()
-        # act_note     = menu.addAction("�  Annotate this layer")
+        act_note     = menu.addAction("📝  Annotate this layer")
         act_rename   = menu.addAction("✏  Rename")
         if not layer.is_original:
             menu.addSeparator()
@@ -680,8 +328,8 @@ class MainWindow(QMainWindow):
             self._calc_and_export_layer(layer)
         elif chosen == act_rename:
             self._rename_layer(name, item)
-        # elif chosen == act_note:
-        #     self._annotate_layer(layer, item)
+        elif chosen == act_note:
+            self._annotate_layer(layer, item)
         elif act_delete and chosen == act_delete:
             self._delete_layer(name)
 
@@ -711,8 +359,6 @@ class MainWindow(QMainWindow):
         if item:
             self.list_layers.takeItem(self.list_layers.row(item))
 
-        
-
     # ================================================================== selection
     def _on_polygon_toggled(self, checked: bool):
         if checked:
@@ -726,14 +372,14 @@ class MainWindow(QMainWindow):
             )
             self.viewer.enable_polygon_mode()
         else:
-            self.btn_polygon.setText("✏  Draw polygon")
+            self.btn_polygon.setText("✏  Select Polygon")
             self.viewer.disable_polygon_mode()
             self.statusbar.showMessage("Ready")
 
     def _on_polygon_mode_ended(self):
         self.btn_polygon.blockSignals(True)
         self.btn_polygon.setChecked(False)
-        self.btn_polygon.setText("✏  Draw polygon")
+        self.btn_polygon.setText("🖊 Select Polygon")
         self.btn_polygon.blockSignals(False)
 
     def _on_select_by_range(self):
@@ -751,7 +397,6 @@ class MainWindow(QMainWindow):
         self._sel_pts   = pts
         self._sel_dists = dists
         n = len(pts) if pts is not None else 0
-        print(f"[DEBUG] selection changed -> {n} points")
         self.lbl_sel_count.setText(f"Selected area: {n:,} points")
         self.statusbar.showMessage(f"Selected {n:,} points")
 
@@ -786,7 +431,6 @@ class MainWindow(QMainWindow):
 
     # ================================================================== calculation
     def _on_calculate(self):
-        # selected_items = self.list_layers.selectedItems()
         selected_items = [
             self.list_layers.item(i)
             for i in range(self.list_layers.count())
@@ -796,11 +440,11 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Warning",
                                 "Please check one or more layers!")
             return
-        
+
         # Collect points and distances from all selected layers
         all_points = []
         all_distances = []
-        
+
         for item in selected_items:
             layer_name = item.data(Qt.UserRole)
             layer = self.layer_manager.get(layer_name)
@@ -810,16 +454,16 @@ class MainWindow(QMainWindow):
             if len(layer.points) > 0:
                 all_points.append(layer.points)
                 all_distances.append(layer.distances)
-        
+
         if not all_points:
             QMessageBox.warning(self, "Warning",
                                 "Selected layers have no points!")
             return
-        
+
         # Combine points and distances from all selected layers
         pts = np.vstack(all_points)
         dists = np.concatenate(all_distances)
-        
+
         self._run_calculation(pts, dists)
 
     def _run_calculation(self, pts: np.ndarray, dists: np.ndarray):
@@ -947,12 +591,6 @@ class MainWindow(QMainWindow):
     def _calc_and_export_layer(self, layer: Layer):
         """Calculate for a single layer synchronously, then export."""
         try:
-            # calc = calculate_area_and_volume(layer.points, layer.distances)
-            # dist = calculate_thickness_distribution(
-            #     layer.distances,
-            #     self.spin_target_min.value(),
-            #     self.spin_target_max.value(),
-            # )
             calc = self.calc_result
             dist = self.thickness_dist
         except Exception as e:
@@ -962,14 +600,8 @@ class MainWindow(QMainWindow):
                         visible_layers=[layer],
                         suffix=f"_{layer.name}")
 
-
     def _do_export(self, calc: CalculationResult, dist: ThicknessDistribution,
                 visible_layers, suffix: str = ""):
-
-        import os
-        import subprocess
-        import platform
-        from PyQt5.QtWidgets import QMessageBox, QFileDialog
 
         if self.project_info is None:
             QMessageBox.warning(self, "Warning", "Please load a PLY file first!")
@@ -981,7 +613,7 @@ class MainWindow(QMainWindow):
         _segment_str = ""
         for _layer in visible_layers:
             _segment_str += f"_{_layer.name}" if _layer.name and (self.project_info.job_number not in _layer.name) else ""
-        
+
         default = (
             f"{self.project_info.project_name}_"
             f"{self.project_info.job_number}_{self.project_info.scan_time}_{self.project_info.segment_name}{_segment_str}{suffix}.pdf"
@@ -1006,16 +638,6 @@ class MainWindow(QMainWindow):
             screenshot = self.viewer.get_screenshot()
 
             original_area_m2 = None
-            original_layer = self.layer_manager.original
-            if original_layer is not None:
-                try:
-                    # original_area_m2 = calculate_area_and_volume(
-                    #     original_layer.points,
-                    #     original_layer.distances
-                    # ).surface_area_m2
-                    pass
-                except Exception:
-                    original_area_m2 = None
 
             ctx = {
                 "project_info": self.project_info,
@@ -1029,11 +651,8 @@ class MainWindow(QMainWindow):
             }
 
             # =========================
-            # 3. Generate report (NEW ARCH)
+            # 3. Generate report
             # =========================
-
-            from report import PDFGenerator
-
             generator = PDFGenerator(fp)
             out = generator.generate(ctx)
 
@@ -1064,9 +683,9 @@ class MainWindow(QMainWindow):
                 "Error",
                 f"Failed to generate report:\n{str(e)}"
             )
+
     # ================================================================== misc
     def _show_about(self):
-        
         QMessageBox.about(
             self, "About Tunnel Analyzer",
             "Tunnel Concrete Thickness Analyzer\n\n"
@@ -1111,3 +730,13 @@ class MainWindow(QMainWindow):
         self.settings.setValue('line_width', self.viewer.spin_line_width.value())
         self.settings.setValue('font_size', self.viewer.spin_font_size.value())
         self.settings.endGroup()
+
+
+if __name__ == "__main__":
+    import sys
+    from PyQt5.QtWidgets import QApplication
+
+    app = QApplication(sys.argv)
+    win = MainWindow()
+    win.show()
+    sys.exit(app.exec_())
