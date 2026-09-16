@@ -9,8 +9,7 @@ Subtract, neither = Replace — mirrors CloudCompare-style modifier use.
 from enum import Enum
 from typing import List, Tuple
 
-import vtk
-
+from pps.render.actors2d import points_actor, polyline_actor
 from pps.render.picking import points_in_polygon, project_to_screen, rectangle_to_polygon
 from pps.tools.base import MouseButton, PointerEvent, PointerEventType, Tool
 
@@ -21,58 +20,6 @@ class RegionMode(Enum):
     POLYGON = "polygon"
     RECTANGLE = "rectangle"
     LASSO = "lasso"
-
-
-def _vtk_points(coords: List[Point2D]) -> vtk.vtkPoints:
-    pts = vtk.vtkPoints()
-    for x, y in coords:
-        pts.InsertNextPoint(float(x), float(y), 0.0)
-    return pts
-
-
-def _actor2d(poly, rgb, line_width=None, point_size=None, opacity=1.0, stipple=None):
-    mapper = vtk.vtkPolyDataMapper2D()
-    mapper.SetInputData(poly)
-    actor = vtk.vtkActor2D()
-    actor.SetMapper(mapper)
-    prop = actor.GetProperty()
-    prop.SetColor(*rgb)
-    prop.SetOpacity(opacity)
-    if line_width is not None:
-        prop.SetLineWidth(line_width)
-    if point_size is not None:
-        prop.SetPointSize(point_size)
-    if stipple is not None:
-        prop.SetLineStipplePattern(stipple)
-    return actor
-
-
-def _polyline_actor(coords: List[Point2D], closed: bool, **style) -> vtk.vtkActor2D:
-    n = len(coords)
-    pts = _vtk_points(coords)
-    lines = vtk.vtkCellArray()
-    limit = n if closed else n - 1
-    for i in range(limit):
-        line = vtk.vtkLine()
-        line.GetPointIds().SetId(0, i)
-        line.GetPointIds().SetId(1, (i + 1) % n)
-        lines.InsertNextCell(line)
-    poly = vtk.vtkPolyData()
-    poly.SetPoints(pts)
-    poly.SetLines(lines)
-    return _actor2d(poly, **style)
-
-
-def _points_actor(coords: List[Point2D], **style) -> vtk.vtkActor2D:
-    pts = _vtk_points(coords)
-    verts = vtk.vtkCellArray()
-    for i in range(len(coords)):
-        verts.InsertNextCell(1)
-        verts.InsertCellPoint(i)
-    poly = vtk.vtkPolyData()
-    poly.SetPoints(pts)
-    poly.SetVerts(verts)
-    return _actor2d(poly, **style)
 
 
 class RegionSelectTool(Tool):
@@ -165,18 +112,18 @@ class RegionSelectTool(Tool):
 
         if n >= 2:
             self.scratch.add(
-                _polyline_actor(self._points, closed=False, rgb=(1.0, 0.55, 0.05), line_width=2.5)
+                polyline_actor(self._points, closed=False, rgb=(1.0, 0.55, 0.05), line_width=2.5)
             )
         if n >= 1:
             self.scratch.add(
-                _points_actor(self._points, rgb=(1.0, 0.25, 0.0), point_size=9)
+                points_actor(self._points, rgb=(1.0, 0.25, 0.0), point_size=9)
             )
         if preview_point is not None and n >= 1:
             preview_coords = [self._points[-1], preview_point]
             if n >= 2:
                 preview_coords.append(self._points[0])
             self.scratch.add(
-                _polyline_actor(
+                polyline_actor(
                     preview_coords, closed=False, rgb=(1.0, 0.85, 0.2),
                     line_width=1.5, opacity=0.6, stipple=0xF0F0,
                 )
@@ -223,7 +170,7 @@ class RegionSelectTool(Tool):
         coords = self._points if closed_shape else rectangle_to_polygon(self._points[0], self._points[-1])
         if len(coords) >= 2:
             self.scratch.add(
-                _polyline_actor(coords, closed=True, rgb=(1.0, 0.55, 0.05), line_width=2.0, opacity=0.85)
+                polyline_actor(coords, closed=True, rgb=(1.0, 0.55, 0.05), line_width=2.0, opacity=0.85)
             )
         self.ctx.overlay.set_hud_text("Release to apply  |  Esc: cancel")
         self.ctx.request_render()

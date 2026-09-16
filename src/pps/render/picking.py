@@ -9,6 +9,7 @@ behaves identically to before.
 from typing import List, Optional, Tuple
 
 import numpy as np
+import vtk
 from matplotlib.path import Path
 
 
@@ -64,3 +65,24 @@ def rectangle_to_polygon(p0: Tuple[float, float], p1: Tuple[float, float]) -> Li
     x0, y0 = p0
     x1, y1 = p1
     return [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+
+
+def pick_nearest_point_3d(
+    x: float, y: float, plotter, tolerance: float = 0.02
+) -> Optional[Tuple[float, float, float]]:
+    """Snap to the nearest visible cloud point under the cursor.
+
+    Uses vtkPointPicker, which ray-casts from the given screen pixel and
+    returns the closest dataset point within `tolerance` (fraction of the
+    renderer's diagonal) — this naturally respects depth (a point behind
+    the visible surface from the current angle is never picked) and avoids
+    reimplementing nearest-neighbor search ourselves.
+
+    Returns None if no point was within tolerance.
+    """
+    picker = vtk.vtkPointPicker()
+    picker.SetTolerance(tolerance)
+    picker.Pick(x, y, 0, plotter.renderer)
+    if picker.GetPointId() < 0:
+        return None
+    return tuple(picker.GetPickPosition())
