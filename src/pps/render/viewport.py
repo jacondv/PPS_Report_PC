@@ -10,6 +10,8 @@ import vtk
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 from pyvistaqt import QtInteractor
 
+from pps.render.overlay import Overlay
+
 BACKGROUND_COLOR = "#1b1f27"
 
 
@@ -23,7 +25,8 @@ class Viewport(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         self.plotter = QtInteractor(self)
-        layout.addWidget(self.plotter.interactor)
+        self.interactor_widget = self.plotter.interactor
+        layout.addWidget(self.interactor_widget)
 
         self.plotter.set_background(BACKGROUND_COLOR)
         self.plotter.add_axes()
@@ -34,6 +37,8 @@ class Viewport(QWidget):
         self.overlay_renderer.InteractiveOff()
         self.plotter.ren_win.SetNumberOfLayers(2)
         self.plotter.ren_win.AddRenderer(self.overlay_renderer)
+
+        self.overlay = Overlay(self.overlay_renderer)
 
     def render(self) -> None:
         self.plotter.ren_win.Render()

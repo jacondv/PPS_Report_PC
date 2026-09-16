@@ -456,7 +456,7 @@ Mỗi phase kết thúc bằng: test pass, `python main.py` chạy được (t�
 ## 11. Câu hỏi mở (nhỏ, có thể trả lời trong quá trình làm)
 
 1. Tên package Python: `pps` (đề xuất) hay tên khác?
-2. Ngôn ngữ UI: hiện tại tiếng Anh; spec cũ (`NewPrompt.txt`) nhắc English + Indonesian. Đề xuất: tiếng Anh, chuỗi gom qua `tr()` để sau này dịch.
-3. Điểm 7.1.6 và 7.1.7: có muốn thông báo/hành vi rõ ràng hơn ở lớp UI không (không đổi core)?
-4. Đo diện tích dùng BPA giống report (chậm vài giây nhưng nhất quán) — OK, hay cần thêm ước lượng nhanh (chiếu lên mặt phẳng khớp) hiển thị tức thì?
-5. Bộ icon: bundle SVG MIT (không thêm dependency) — OK?
+2. Ngôn ngữ UI: hiện tại tiếng Anh; spec cũ (`NewPrompt.txt`) nhắc English + Indonesian. Đề xuất: tiếng Anh, chuỗi gom qua `tr()` để sau này dịch. --> Chỉ dùng tiếng anh English
+3. Điểm 7.1.6 và 7.1.7: có muốn thông báo/hành vi rõ ràng hơn ở lớp UI không (không đổi core)? --> Có
+4. Đo diện tích dùng BPA giống report (chậm vài giây nhưng nhất quán) — OK, hay cần thêm ước lượng nhanh (chiếu lên mặt phẳng khớp) hiển thị tức thì? -> Giữ nguyên như cũ
+5. Bộ icon: bundle SVG MIT (không thêm dependency) — OK? ->-> Ok
