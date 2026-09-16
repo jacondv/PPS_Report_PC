@@ -1,10 +1,10 @@
 # report/templates/shotcrete_template.py
 
-from report.sections.project_section import ProjectSection
-from report.sections.result_section import ResultSection
-from report.sections.segment_notes_section import SegmentNotesSection
-from report.sections.distribution_section import DistributionSection
-from report.sections.image_section import ImageSection
+from pps.report.sections.project_section import ProjectSection
+from pps.report.sections.result_section import ResultSection
+from pps.report.sections.segment_notes_section import SegmentNotesSection
+from pps.report.sections.distribution_section import DistributionSection
+from pps.report.sections.image_section import ImageSection
 
 from reportlab.platypus import PageBreak
 

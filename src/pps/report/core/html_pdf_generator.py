@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 import tempfile
@@ -7,7 +8,9 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from matplotlib import pyplot as plt
 import pdfkit
-from utils.path_helper import resource_path
+from pps.utils.path_helper import resource_path
+
+logger = logging.getLogger(__name__)
 
 
 class HTMLPDFGenerator:
@@ -40,10 +43,7 @@ class HTMLPDFGenerator:
             }
             pdfkit.from_file(html_path, self.output_path, options=options, configuration=config,verbose=True)
         except Exception as exc:
-            print("❌ wkhtmltopdf ERROR:")
-            print(exc)
-
-            # 👉 giữ nguyên lỗi gốc để debug
+            logger.error("wkhtmltopdf failed: %s", exc)
             raise RuntimeError(f"wkhtmltopdf failed: {exc}") from exc
         finally:
             try:
@@ -71,7 +71,7 @@ class HTMLPDFGenerator:
         chart_path = self._create_distribution_chart(dist, target_min, target_max) if dist is not None else None
 
         visible_layers_name = ", ".join(layer.name for layer in visible_layers)
-        print(f"Visible layers for report: {visible_layers_name}")
+        logger.debug("Visible layers for report: %s", visible_layers_name)
 
         return template.render(
             title='SHOTCRETE THICKNESS REPORT',
@@ -136,7 +136,7 @@ class HTMLPDFGenerator:
             value2 = right_values[i] if i < len(right_values) else ''
             rows.append((label1, value1, label2, value2))
         
-        print(f"Generated project rows: {rows}")
+        logger.debug("Generated project rows: %s", rows)
         return rows
 
     def _result_main_rows(self, result):
@@ -230,7 +230,7 @@ class HTMLPDFGenerator:
         chart_path = os.path.join(tmp_dir, 'pps_report_distribution.png')
         fig.savefig(chart_path, dpi=150)
         plt.close(fig)
-        print(f"Saved distribution chart to: {chart_path}")
+        logger.debug("Saved distribution chart to: %s", chart_path)
         return chart_path
 
     def _escape_path(self, path):
@@ -272,38 +272,18 @@ class HTMLPDFGenerator:
 
         for base in bases:
             candidate = os.path.join(base, rel)
-            print(f"[DEBUG] checking: {candidate}")
+            logger.debug("checking: %s", candidate)
             if os.path.exists(candidate):
-                print(f"[DEBUG] found: {candidate}")
+                logger.debug("found: %s", candidate)
                 return candidate
 
-        # In ra toàn bộ để debug
-        print(f"[DEBUG] sys.executable: {sys.executable}")
-        print(f"[DEBUG] cwd: {os.getcwd()}")
-        print(f"[DEBUG] frozen: {getattr(sys, 'frozen', False)}")
+        logger.error(
+            "wkhtmltopdf not found. sys.executable=%s cwd=%s frozen=%s",
+            sys.executable, os.getcwd(), getattr(sys, 'frozen', False),
+        )
 
         raise RuntimeError(
             'wkhtmltopdf executable not found.\n'
             f'Searched bases: {bases}\n'
             f'Relative path: {rel}'
         )
-    
-
-    # def _find_wkhtmltopdf(self):
-    #     from shutil import which
-
-    #     wkhtmltopdf = which('wkhtmltopdf')
-    #     if wkhtmltopdf:
-    #         return wkhtmltopdf
-
-    #     possible_paths = [
-    #         r"report/packages/wkhtmltox/bin/wkhtmltopdf.exe",
-    #     ]
-    #     for candidate in possible_paths:
-
-    #         if os.path.exists(candidate):
-    #             return candidate
-
-    #     raise RuntimeError(
-    #         'wkhtmltopdf executable not found. Install wkhtmltopdf and ensure it is on the PATH.'
-    #     )

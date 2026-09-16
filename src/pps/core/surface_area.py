@@ -1,4 +1,4 @@
-from utils.utils import timeit
+from pps.utils.timing import timeit
 @timeit
 def surface_area(
     pcd,

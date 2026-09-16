@@ -3,8 +3,8 @@
 from reportlab.platypus import SimpleDocTemplate
 from reportlab.lib.pagesizes import A4
 
-from report.templates.shotcrete_template import ShotcreteTemplate
-from report.styles.style_factory import StyleFactory
+from pps.report.templates.shotcrete_template import ShotcreteTemplate
+from pps.report.styles.style_factory import StyleFactory
 
 class PDFGenerator:
 

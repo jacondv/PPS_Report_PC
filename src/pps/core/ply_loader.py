@@ -2,11 +2,14 @@
 PLY file loader with support for custom scalar fields (distances).
 """
 
+import logging
 import numpy as np
 from plyfile import PlyData
 from dataclasses import dataclass
 from typing import Optional, List, Tuple
 import os
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -93,7 +96,7 @@ def load_ply(filepath: str, distance_field: str = "distances") -> PointCloudData
             distances[mask] = np.abs(distances[mask])
             distances = np.where(distances < -25, np.abs(distances), distances)
 
-            print(f"Found distance field: '{name}'")
+            logger.debug("Found distance field: '%s'", name)
             break
         except (ValueError, KeyError):
             continue
@@ -101,7 +104,7 @@ def load_ply(filepath: str, distance_field: str = "distances") -> PointCloudData
     if distances is None:
         # List available fields for debugging
         available_fields = list(vertex.data.dtype.names)
-        print(f"Warning: Distance field not found. Available fields: {available_fields}")
+        logger.warning("Distance field not found. Available fields: %s", available_fields)
         # Create zero distances as fallback
         distances = np.zeros(len(points))
     
