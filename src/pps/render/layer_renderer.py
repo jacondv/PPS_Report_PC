@@ -57,7 +57,7 @@ class LayerRenderer:
         point_size: int = 3,
     ):
         """(Re)build the actor for `layer` from scratch and return it."""
-        self.remove(layer.name)
+        self.remove(layer.id)
 
         cloud = pv.PolyData(layer.points)
         cloud["thickness"] = layer.distances
@@ -75,19 +75,19 @@ class LayerRenderer:
             point_size=point_size,
             render_points_as_spheres=True,
             show_scalar_bar=False,
-            name=f"layer_{layer.name}",
+            name=f"layer_{layer.id}",
         )
         actor.SetVisibility(layer.visible)
-        self._actors[layer.name] = actor
+        self._actors[layer.id] = actor
         return actor
 
-    def set_visible(self, layer_name: str, visible: bool) -> None:
-        actor = self._actors.get(layer_name)
+    def set_visible(self, layer_id: str, visible: bool) -> None:
+        actor = self._actors.get(layer_id)
         if actor is not None:
             actor.SetVisibility(visible)
 
-    def remove(self, layer_name: str) -> None:
-        actor = self._actors.pop(layer_name, None)
+    def remove(self, layer_id: str) -> None:
+        actor = self._actors.pop(layer_id, None)
         if actor is not None:
             try:
                 self._plotter.remove_actor(actor)
@@ -95,8 +95,8 @@ class LayerRenderer:
                 pass
 
     def clear(self) -> None:
-        for layer_name in list(self._actors):
-            self.remove(layer_name)
+        for layer_id in list(self._actors):
+            self.remove(layer_id)
 
-    def get(self, layer_name: str) -> Optional[object]:
-        return self._actors.get(layer_name)
+    def get(self, layer_id: str) -> Optional[object]:
+        return self._actors.get(layer_id)

@@ -125,6 +125,18 @@ class Document(QObject):
         self.mark_dirty()
         self.layer_changed.emit(layer_id)
 
+    def set_note_visible(self, note_id: str, visible: bool) -> None:
+        note = self._find_note(note_id)
+        if note is None or note.visible == visible:
+            return
+        self._update_note(note_id, visible=visible)
+
+    def set_measurement_visible(self, measurement_id: str, visible: bool) -> None:
+        measurement = self._find_measurement(measurement_id)
+        if measurement is None or measurement.visible == visible:
+            return
+        self._update_measurement(measurement_id, visible=visible)
+
     # ------------------------------------------------------------------ low-level mutators
     # These are called by scene/commands.py (for undo/redo) as well as
     # directly for non-undoable bookkeeping. They always emit the matching
