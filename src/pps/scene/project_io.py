@@ -181,6 +181,8 @@ def load_project(document: Document, path: str, ply_loader: PlyLoader) -> Layer:
         document.measurements.extend(
             _measurement_from_dict(d) for d in project["measurements"]
         )
+        for layer in document.layer_manager.layers:
+            document._sync_layer_annotations(layer.id)
 
     document.mark_clean()
     document.reset.emit()

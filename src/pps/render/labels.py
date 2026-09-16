@@ -21,6 +21,44 @@ def hex_to_rgb(color: str) -> RGB:
     return tuple(int(color[i : i + 2], 16) / 255.0 for i in (0, 2, 4))
 
 
+def default_marker_radius(plotter, fraction: float = 0.004) -> float:
+    """A marker sphere radius scaled to the visible scene, instead of a
+    fixed absolute size — a fixed radius looks fine on a 10 m tunnel scan
+    and comically huge (or invisible) on data at a different scale."""
+    try:
+        bounds = plotter.renderer.ComputeVisiblePropBounds()
+        diagonal = (
+            (bounds[1] - bounds[0]) ** 2
+            + (bounds[3] - bounds[2]) ** 2
+            + (bounds[5] - bounds[4]) ** 2
+        ) ** 0.5
+    except Exception:
+        diagonal = 0.0
+    return diagonal * fraction if diagonal > 0 else 0.05
+
+
+def compute_label_bbox(
+    anchor: Tuple[float, float, float],
+    offset_px: Tuple[int, int],
+    text: str,
+    font_size: int,
+    plotter,
+) -> Optional[Tuple[float, float, float, float]]:
+    """Rough (x0, y0, x1, y1) screen bounding box of a label's text, for
+    hit-testing clicks/drags without needing a live AnchoredLabel/actor —
+    just the raw anchor/offset/text data (e.g. straight from a
+    NoteAnnotation). Width is estimated from character count since VTK
+    doesn't expose real glyph metrics without a live render."""
+    projected = project_to_screen(np.array([anchor]), plotter)
+    if projected is None:
+        return None
+    ax, ay = float(projected[0, 0]), float(projected[0, 1])
+    lx, ly = ax + offset_px[0], ay + offset_px[1]
+    width = max(len(text), 1) * font_size * 0.62
+    height = font_size * 1.5
+    return (lx - 4, ly - 4, lx + width, ly + height)
+
+
 class AnchoredLabel:
     """Owns 3 actors: a small 3D marker at the anchor, a 3D billboard text
     (screen-facing, offset in pixels from the anchor), and a 2D leader line
@@ -38,7 +76,7 @@ class AnchoredLabel:
         color: str = "#ffd166",
         font_size: int = 14,
         line_width: int = 2,
-        marker_radius: float = 1.0,
+        marker_radius: Optional[float] = None,
     ):
         self._plotter = plotter
         self._overlay = overlay
@@ -47,6 +85,8 @@ class AnchoredLabel:
         self.text = text
         self.font_size = font_size
 
+        if marker_radius is None:
+            marker_radius = default_marker_radius(plotter)
         self._marker_actor = self._build_marker(marker_radius, color)
         plotter.renderer.AddActor(self._marker_actor)
 
@@ -104,17 +144,7 @@ class AnchoredLabel:
         return float(projected[0, 0]), float(projected[0, 1])
 
     def label_screen_bbox(self) -> Optional[Tuple[float, float, float, float]]:
-        """Rough (x0, y0, x1, y1) screen bounding box of the label text, for
-        hit-testing clicks/drags. Width is estimated from character count
-        since VTK doesn't expose real glyph metrics without a live render."""
-        anchor_pos = self.anchor_screen_pos()
-        if anchor_pos is None:
-            return None
-        ax, ay = anchor_pos
-        lx, ly = ax + self.offset_px[0], ay + self.offset_px[1]
-        width = max(len(self.text), 1) * self.font_size * 0.62
-        height = self.font_size * 1.5
-        return (lx - 4, ly - 4, lx + width, ly + height)
+        return compute_label_bbox(self.anchor, self.offset_px, self.text, self.font_size, self._plotter)
 
     def contains_screen_point(self, x: float, y: float) -> bool:
         bbox = self.label_screen_bbox()

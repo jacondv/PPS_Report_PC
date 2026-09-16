@@ -194,6 +194,21 @@ class LayerManager:
     def visible_layers(self) -> List[Layer]:
         return [l for l in self._layers if l.visible]
 
+    def nearest_layer_id(self, anchor: Tuple[float, float, float]) -> Optional[str]:
+        """Id of the visible layer whose closest point is nearest to
+        `anchor` — used to attach a 3D-anchored note to "its" layer for the
+        legacy report segment-notes feature."""
+        anchor_arr = np.asarray(anchor, dtype=np.float64)
+        best_id, best_dist = None, float("inf")
+        for layer in self.visible_layers():
+            if layer.num_points == 0:
+                continue
+            min_dist = float(np.linalg.norm(layer.points - anchor_arr, axis=1).min())
+            if min_dist < best_dist:
+                best_dist = min_dist
+                best_id = layer.id
+        return best_id
+
     def combined_visible(self) -> Tuple[np.ndarray, np.ndarray]:
         """
         Concatenate points + distances of all VISIBLE layers.

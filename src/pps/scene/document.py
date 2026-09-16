@@ -157,17 +157,32 @@ class Document(QObject):
     def _find_note(self, note_id: str) -> Optional[NoteAnnotation]:
         return next((a for a in self.annotations if a.id == note_id), None)
 
+    def _sync_layer_annotations(self, layer_id: Optional[str]) -> None:
+        """Keep the legacy Layer.annotations (list[dict]) in sync with
+        Document.annotations for that layer — report._segment_notes() and
+        the old per-layer note-count display both depend on this shape."""
+        if layer_id is None:
+            return
+        layer = self.layer_manager.get_by_id(layer_id)
+        if layer is None:
+            return
+        layer.annotations = [
+            {"text": note.text} for note in self.annotations if note.layer_id == layer_id
+        ]
+
     def _insert_note(self, note: NoteAnnotation, index: Optional[int] = None) -> None:
         if index is None:
             self.annotations.append(note)
         else:
             self.annotations.insert(index, note)
+        self._sync_layer_annotations(note.layer_id)
         self.mark_dirty()
         self.annotation_added.emit(note.id)
 
     def _remove_note(self, note_id: str):
         index = next(i for i, a in enumerate(self.annotations) if a.id == note_id)
         note = self.annotations.pop(index)
+        self._sync_layer_annotations(note.layer_id)
         self.mark_dirty()
         self.annotation_removed.emit(note_id)
         return note, index
@@ -175,8 +190,12 @@ class Document(QObject):
     def _update_note(self, note_id: str, **fields) -> dict:
         note = self._find_note(note_id)
         old_values = {k: getattr(note, k) for k in fields}
+        old_layer_id = note.layer_id
         for k, v in fields.items():
             setattr(note, k, v)
+        self._sync_layer_annotations(old_layer_id)
+        if note.layer_id != old_layer_id:
+            self._sync_layer_annotations(note.layer_id)
         self.mark_dirty()
         self.annotation_changed.emit(note_id)
         return old_values
