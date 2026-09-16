@@ -80,3 +80,8 @@ temp/
 node_modules/
 dist/
 build/
+
+# ======================
+# Local machine state (không commit)
+# ======================
+.exclusion_added
