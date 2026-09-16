@@ -17,6 +17,10 @@ def main_window(qtbot):
     window = MainWindow()
     qtbot.addWidget(window)
     yield window
+    # Bypass the unsaved-changes confirmation dialog on teardown — that flow
+    # has its own dedicated tests below and must not block here on a real
+    # (non-mocked) QMessageBox if a test left the document dirty.
+    window.document._dirty = False
     window.close()
 
 
@@ -106,3 +110,73 @@ def test_export_pdf_produces_real_file(main_window, sample_ply_path, tmp_path, q
 
     assert os.path.exists(out_path)
     assert os.path.getsize(out_path) > 0
+
+
+def test_save_project_as_then_reopen_restores_camera(main_window, sample_ply_path, tmp_path, qtbot, monkeypatch):
+    main_window._load_file(sample_ply_path)
+
+    project_path = str(tmp_path / "phase7.ppsproj")
+    monkeypatch.setattr(
+        "pps.ui.main_window.QFileDialog.getSaveFileName", lambda *a, **k: (project_path, "")
+    )
+    assert main_window._on_save_project_as() is True
+    assert main_window.current_project_path == project_path
+    assert os.path.exists(project_path)
+    assert main_window.document.dirty is False
+
+    # Recent Projects menu now lists it
+    assert project_path in main_window._recent_projects()
+
+    other_window = MainWindow()
+    qtbot.addWidget(other_window)
+    other_window._open_project_path(project_path)
+    assert other_window.current_project_path == project_path
+    assert other_window.document.layer_manager.original is not None
+    other_window.close()
+
+
+def test_save_project_uses_current_path_without_dialog(main_window, sample_ply_path, tmp_path, qtbot, monkeypatch):
+    main_window._load_file(sample_ply_path)
+    project_path = str(tmp_path / "direct_save.ppsproj")
+    main_window.current_project_path = project_path
+
+    def fail_dialog(*a, **k):
+        raise AssertionError("Save dialog should not be shown when current_project_path is set")
+
+    monkeypatch.setattr("pps.ui.main_window.QFileDialog.getSaveFileName", fail_dialog)
+    assert main_window._on_save_project() is True
+    assert os.path.exists(project_path)
+
+
+def test_close_with_unsaved_changes_prompts_and_can_cancel(main_window, sample_ply_path, monkeypatch):
+    from PySide6.QtGui import QCloseEvent
+    from PySide6.QtWidgets import QMessageBox
+
+    main_window._load_file(sample_ply_path)
+    main_window.document.mark_dirty()
+
+    monkeypatch.setattr(
+        "pps.ui.main_window.QMessageBox.question",
+        lambda *a, **k: QMessageBox.StandardButton.Cancel,
+    )
+
+    event = QCloseEvent()
+    main_window.closeEvent(event)
+    assert not event.isAccepted()
+
+
+def test_close_with_unsaved_changes_discard_proceeds(main_window, sample_ply_path, monkeypatch):
+    from PySide6.QtGui import QCloseEvent
+    from PySide6.QtWidgets import QMessageBox
+
+    main_window._load_file(sample_ply_path)
+    main_window.document.mark_dirty()
+
+    monkeypatch.setattr(
+        "pps.ui.main_window.QMessageBox.question",
+        lambda *a, **k: QMessageBox.StandardButton.Discard,
+    )
+
+    event = QCloseEvent()
+    main_window.closeEvent(event)
+    assert event.isAccepted()

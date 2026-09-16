@@ -54,6 +54,7 @@ class Document(QObject):
         self.distance_field: str = "distances"
         self.target_min: float = 40.0
         self.target_max: float = 60.0
+        self.camera_state: Optional[dict] = None
 
         self.undo_stack = QUndoStack(self)
 
@@ -83,6 +84,7 @@ class Document(QObject):
         self.undo_stack.clear()
         self.project_info = None
         self.source_path = None
+        self.camera_state = None
         self._dirty = False
 
     def new_document(self) -> None:

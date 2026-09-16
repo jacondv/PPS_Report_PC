@@ -28,6 +28,7 @@ from pps.render.note_renderer import NoteRenderer
 from pps.render.viewport import Viewport
 from pps.report import PDFGenerator
 from pps.scene.document import Document
+from pps.scene.project_io import load_project, save_project
 from pps.tools.base import ToolContext
 from pps.tools.manager import ToolManager
 from pps.tools.measure_area import MeasureAreaTool
@@ -49,6 +50,9 @@ logger = logging.getLogger(__name__)
 
 _DISTANCE_FIELD_PRIORITY = ("distances", "distance", "thickness", "scalar_distances")
 
+RECENT_PROJECTS_KEY = "recent/projects"
+RECENT_PROJECTS_MAX = 10
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -64,6 +68,7 @@ class MainWindow(QMainWindow):
         self._thickness_dist = None
         self._selection_highlight_actor = None
         self._area_workers = []  # keep QThreads alive while running
+        self.current_project_path = None
 
         self.viewport = Viewport(self)
         self.setCentralWidget(self.viewport)
@@ -182,6 +187,27 @@ class MainWindow(QMainWindow):
 
         file_menu = menu_bar.addMenu("&File")
         file_menu.addAction(self.action_open)
+        file_menu.addSeparator()
+
+        self.action_save_project = QAction("Save Project", self)
+        self.action_save_project.setShortcut(QKeySequence.StandardKey.Save)
+        self.action_save_project.triggered.connect(self._on_save_project)
+        file_menu.addAction(self.action_save_project)
+
+        self.action_save_project_as = QAction("Save Project As…", self)
+        self.action_save_project_as.setShortcut(QKeySequence.StandardKey.SaveAs)
+        self.action_save_project_as.triggered.connect(self._on_save_project_as)
+        file_menu.addAction(self.action_save_project_as)
+
+        self.action_open_project = QAction("Open Project…", self)
+        self.action_open_project.setShortcut(QKeySequence("Ctrl+Shift+O"))
+        self.action_open_project.triggered.connect(self._on_open_project)
+        file_menu.addAction(self.action_open_project)
+
+        self.recent_projects_menu = file_menu.addMenu("Recent Projects")
+        self._update_recent_projects_menu()
+
+        file_menu.addSeparator()
         file_menu.addAction(self.action_export_pdf)
         file_menu.addSeparator()
         action_exit = QAction("Exit", self)
@@ -238,7 +264,14 @@ class MainWindow(QMainWindow):
         self._clear_selection_highlight()
         for layer in self.document.layer_manager.layers:
             self.layer_renderer.sync(layer, self.document.target_min, self.document.target_max, self._point_size)
-        camera.reset_view(self.viewport.plotter)
+        self.note_renderer.sync_all(self.document.annotations)
+        self.measurement_renderer.sync_all(self.document.measurements)
+
+        if self.document.camera_state is not None:
+            camera.set_camera_state(self.viewport.plotter, self.document.camera_state)
+            self.document.camera_state = None
+        else:
+            camera.reset_view(self.viewport.plotter)
         self.tool_manager.on_document_reset()
         self._calc_result = None
         self._thickness_dist = None
@@ -312,8 +345,15 @@ class MainWindow(QMainWindow):
         self.viewport.render()
 
     def _on_dirty_changed(self, dirty: bool) -> None:
+        self._update_window_title()
+
+    def _update_window_title(self) -> None:
         title = "Tunnel Concrete Thickness Analyzer"
-        self.setWindowTitle(f"{title} *" if dirty else title)
+        if self.current_project_path:
+            title = f"{title} — {os.path.basename(self.current_project_path)}"
+        if self.document.dirty:
+            title += " *"
+        self.setWindowTitle(title)
 
     def _on_select_all(self) -> None:
         self.document.selection.select_all()
@@ -321,11 +361,14 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ File > Open
     def _on_open_file(self) -> None:
+        if not self._confirm_discard_unsaved():
+            return
         filepath, _ = QFileDialog.getOpenFileName(
             self, "Open Point Cloud File", "",
             "Compare Files (*compare*.ply);;PLY Files (*.ply);;All Files (*)",
         )
         if filepath:
+            self.current_project_path = None
             self._load_file(filepath)
 
     def _load_file(self, filepath: str) -> None:
@@ -353,6 +396,7 @@ class MainWindow(QMainWindow):
                 target_max=target_max,
             )
             self.document.mark_clean()
+            self._update_window_title()
 
             self.statusBar().showMessage(
                 f"Loaded: {os.path.basename(filepath)}  ({cloud.num_points:,} points)"
@@ -361,6 +405,121 @@ class MainWindow(QMainWindow):
             logger.exception("Failed to load %s", filepath)
             QMessageBox.critical(self, "Error", f"Cannot load file:\n{exc}")
             self.statusBar().showMessage("Error loading file")
+
+    # ------------------------------------------------------------------ File > Save/Open Project
+    def _confirm_discard_unsaved(self) -> bool:
+        """Return True if it's OK to discard the current document (not dirty,
+        or the user chose to save/discard). False means the caller should
+        abort (user chose Cancel, or a save attempt failed)."""
+        if not self.document.dirty:
+            return True
+        choice = QMessageBox.question(
+            self, "Unsaved Changes",
+            "The current project has unsaved changes. Save before continuing?",
+            QMessageBox.StandardButton.Save
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save,
+        )
+        if choice == QMessageBox.StandardButton.Cancel:
+            return False
+        if choice == QMessageBox.StandardButton.Save:
+            return self._on_save_project()
+        return True
+
+    def _on_save_project(self) -> bool:
+        if self.document.source_path is None:
+            QMessageBox.warning(self, "Warning", "Please load a PLY file first!")
+            return False
+        if self.current_project_path is None:
+            return self._on_save_project_as()
+        self._save_project_to(self.current_project_path)
+        return True
+
+    def _on_save_project_as(self) -> bool:
+        if self.document.source_path is None:
+            QMessageBox.warning(self, "Warning", "Please load a PLY file first!")
+            return False
+        default_path = self.current_project_path or os.path.splitext(self.document.source_path)[0] + ".ppsproj"
+        filepath, _ = QFileDialog.getSaveFileName(
+            self, "Save Project As", default_path, "PPS Project Files (*.ppsproj)"
+        )
+        if not filepath:
+            return False
+        self._save_project_to(filepath)
+        return True
+
+    def _save_project_to(self, filepath: str) -> None:
+        try:
+            camera_state = camera.get_camera_state(self.viewport.plotter)
+            save_project(self.document, filepath, camera_state=camera_state)
+            self.current_project_path = filepath
+            self._add_recent_project(filepath)
+            self._update_window_title()
+            self.statusBar().showMessage(f"Project saved: {filepath}")
+        except Exception as exc:
+            logger.exception("Failed to save project %s", filepath)
+            QMessageBox.critical(self, "Error", f"Cannot save project:\n{exc}")
+
+    def _on_open_project(self) -> None:
+        if not self._confirm_discard_unsaved():
+            return
+        filepath, _ = QFileDialog.getOpenFileName(
+            self, "Open Project", "", "PPS Project Files (*.ppsproj)"
+        )
+        if filepath:
+            self._open_project_path(filepath)
+
+    def _open_project_path(self, filepath: str) -> None:
+        try:
+            self.statusBar().showMessage(f"Loading project: {filepath}…")
+            load_project(self.document, filepath, load_ply)
+            self.current_project_path = filepath
+            self._add_recent_project(filepath)
+            self._update_window_title()
+            self.statusBar().showMessage(f"Project loaded: {filepath}")
+        except Exception as exc:
+            logger.exception("Failed to load project %s", filepath)
+            QMessageBox.critical(self, "Error", f"Cannot load project:\n{exc}")
+            self.statusBar().showMessage("Error loading project")
+            self._remove_recent_project(filepath)
+
+    def _recent_projects(self) -> list:
+        return self.settings.value(RECENT_PROJECTS_KEY, [], type=list) or []
+
+    def _add_recent_project(self, filepath: str) -> None:
+        recent = [p for p in self._recent_projects() if p != filepath]
+        recent.insert(0, filepath)
+        self.settings.setValue(RECENT_PROJECTS_KEY, recent[:RECENT_PROJECTS_MAX])
+        self._update_recent_projects_menu()
+
+    def _remove_recent_project(self, filepath: str) -> None:
+        recent = [p for p in self._recent_projects() if p != filepath]
+        self.settings.setValue(RECENT_PROJECTS_KEY, recent)
+        self._update_recent_projects_menu()
+
+    def _update_recent_projects_menu(self) -> None:
+        menu = self.recent_projects_menu
+        menu.clear()
+        recent = self._recent_projects()
+        if not recent:
+            empty_action = QAction("(No recent projects)", self)
+            empty_action.setEnabled(False)
+            menu.addAction(empty_action)
+            return
+        for filepath in recent:
+            action = QAction(filepath, self)
+            action.triggered.connect(lambda checked=False, p=filepath: self._on_recent_project_triggered(p))
+            menu.addAction(action)
+
+    def _on_recent_project_triggered(self, filepath: str) -> None:
+        if not os.path.exists(filepath):
+            QMessageBox.warning(self, "Warning", f"Project file not found:\n{filepath}")
+            self._remove_recent_project(filepath)
+            return
+        if not self._confirm_discard_unsaved():
+            return
+        self._open_project_path(filepath)
 
     # ------------------------------------------------------------------ Calculate
     def _on_calculate(self) -> None:
@@ -479,6 +638,9 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "Reset Layout", "Restart the application to apply the reset layout.")
 
     def closeEvent(self, event) -> None:
+        if not self._confirm_discard_unsaved():
+            event.ignore()
+            return
         self.settings.setValue("window/geometry", self.saveGeometry())
         self.settings.setValue("window/state", self.saveState())
         self.viewport.close()

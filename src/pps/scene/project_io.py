@@ -35,7 +35,7 @@ def _tuple(values, length):
     return tuple(float(v) for v in values[:length])
 
 
-def save_project(document: Document, path: str) -> None:
+def save_project(document: Document, path: str, camera_state: dict = None) -> None:
     if document.source_path is None:
         raise ValueError("Document has no loaded point cloud to save")
 
@@ -74,6 +74,7 @@ def save_project(document: Document, path: str) -> None:
         "layers": layers_data,
         "annotations": [asdict(a) for a in document.annotations],
         "measurements": [_measurement_to_dict(m) for m in document.measurements],
+        "camera": camera_state,
     }
 
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -183,6 +184,8 @@ def load_project(document: Document, path: str, ply_loader: PlyLoader) -> Layer:
         )
         for layer in document.layer_manager.layers:
             document._sync_layer_annotations(layer.id)
+
+        document.camera_state = project.get("camera")
 
     document.mark_clean()
     document.reset.emit()

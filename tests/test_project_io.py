@@ -96,6 +96,40 @@ def test_save_and_load_project_round_trip(sample_ply_path, tmp_path, qtbot):
     np.testing.assert_array_equal(area_m.sources[0].indices, np.array([0, 1, 2, 3, 4]))
 
 
+def test_save_and_load_project_round_trip_with_camera(sample_ply_path, tmp_path, qtbot):
+    doc = _build_document_with_content(sample_ply_path)
+    camera_state = {
+        "position": (1.0, 2.0, 3.0),
+        "focal_point": (0.0, 0.0, 0.0),
+        "up": (0.0, 1.0, 0.0),
+        "parallel_scale": 5.5,
+        "view_angle": 30.0,
+    }
+
+    project_path = str(tmp_path / "test_camera.ppsproj")
+    save_project(doc, project_path, camera_state=camera_state)
+
+    loaded = Document()
+    load_project(loaded, project_path, load_ply)
+
+    assert loaded.camera_state["parallel_scale"] == camera_state["parallel_scale"]
+    assert loaded.camera_state["view_angle"] == camera_state["view_angle"]
+    assert tuple(loaded.camera_state["position"]) == camera_state["position"]
+    assert tuple(loaded.camera_state["focal_point"]) == camera_state["focal_point"]
+    assert tuple(loaded.camera_state["up"]) == camera_state["up"]
+
+
+def test_save_project_without_camera_state_leaves_it_none(sample_ply_path, tmp_path, qtbot):
+    doc = _build_document_with_content(sample_ply_path)
+    project_path = str(tmp_path / "test_no_camera.ppsproj")
+    save_project(doc, project_path)
+
+    loaded = Document()
+    load_project(loaded, project_path, load_ply)
+
+    assert loaded.camera_state is None
+
+
 def test_resolve_ply_path_falls_back_to_relative(tmp_path):
     ply_dir = tmp_path / "moved"
     ply_dir.mkdir()
