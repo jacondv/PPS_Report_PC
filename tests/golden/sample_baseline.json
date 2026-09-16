@@ -1,0 +1,459 @@
+{
+  "sample_file": "2_thickness_01#20260203_093652#cloud_compared_07.ply",
+  "fields": [
+    "x",
+    "y",
+    "z",
+    "red",
+    "green",
+    "blue",
+    "distances"
+  ],
+  "num_points": 202339,
+  "points_hash": "3247c33b968a3e3673ddf9f6e23325bfc8258df1dbd029b0bcb2b16a70b8894e",
+  "distances_hash_raw": "54873da97bc382835d04a0da2df066ddd7a3d643463e42ebc0c532135b1629d3",
+  "project_info": {
+    "project_name": "PPS_Report_PC",
+    "job_number": "sample",
+    "scan_time": "20260203_093652",
+    "segment_name": "cloud_compared_07",
+    "parse_success": true,
+    "formatted_date": "03-Feb-2026",
+    "formatted_time": "09:36:52"
+  },
+  "cases": [
+    {
+      "target_min": 40.0,
+      "target_max": 60.0,
+      "calculation_result": {
+        "surface_area_m2": 99.7482023350141,
+        "volume_m3": 2.9677193391235015,
+        "mean_thickness_mm": 209.6776549735704,
+        "min_thickness_mm": 41.0,
+        "max_thickness_mm": 500.0,
+        "std_thickness_mm": 103.39939044344688,
+        "num_points": 202339,
+        "area_reached_target_m2": 14.153722481766492
+      },
+      "thickness_distribution": {
+        "below_target": 171026,
+        "within_target": 1847,
+        "above_target": 29466,
+        "below_target_percent": 84.5244861346552,
+        "within_target_percent": 0.9128245172705213,
+        "above_target_percent": 14.56268934807427,
+        "histogram_bins": [
+          0.0,
+          10.2,
+          20.4,
+          30.599999999999998,
+          40.8,
+          51.0,
+          61.199999999999996,
+          71.39999999999999,
+          81.6,
+          91.8,
+          102.0,
+          112.19999999999999,
+          122.39999999999999,
+          132.6,
+          142.79999999999998,
+          153.0,
+          163.2,
+          173.39999999999998,
+          183.6,
+          193.79999999999998,
+          204.0,
+          214.2,
+          224.39999999999998,
+          234.6,
+          244.79999999999998,
+          254.99999999999997,
+          265.2,
+          275.4,
+          285.59999999999997,
+          295.79999999999995,
+          306.0,
+          316.2,
+          326.4,
+          336.59999999999997,
+          346.79999999999995,
+          357.0,
+          367.2,
+          377.4,
+          387.59999999999997,
+          397.79999999999995,
+          408.0,
+          418.2,
+          428.4,
+          438.59999999999997,
+          448.79999999999995,
+          458.99999999999994,
+          469.2,
+          479.4,
+          489.59999999999997,
+          499.79999999999995,
+          510.0
+        ],
+        "histogram_counts": [
+          145294,
+          20855,
+          3638,
+          1175,
+          860,
+          967,
+          875,
+          880,
+          947,
+          919,
+          956,
+          811,
+          888,
+          903,
+          1004,
+          1131,
+          1121,
+          1283,
+          1273,
+          1221,
+          1332,
+          1189,
+          1205,
+          1034,
+          907,
+          799,
+          731,
+          698,
+          747,
+          615,
+          593,
+          521,
+          500,
+          502,
+          474,
+          520,
+          443,
+          408,
+          359,
+          324,
+          293,
+          196,
+          179,
+          121,
+          123,
+          115,
+          91,
+          80,
+          68,
+          9
+        ],
+        "target_min": 40.0,
+        "target_max": 60.0
+      },
+      "distances_hash_after_mutation": "5bfa89dbe47dace94e019ccfc2f8612eba31a78473ac4702346b2e22d1971cda",
+      "project_rows": [
+        [
+          "Site",
+          "PPS_Report_PC",
+          "Shotcrete Applied",
+          "50 (mm) ±10 mm"
+        ],
+        [
+          "Job Name",
+          "sample",
+          "Average Thickness",
+          "210 mm"
+        ],
+        [
+          "Date",
+          "03-Feb-2026",
+          "Shotcrete Volume",
+          "3.0 m³"
+        ],
+        [
+          "Time",
+          "09:36:52",
+          "Area Completed/Total",
+          "14.2 / 99.7 m² (14%)"
+        ],
+        [
+          "Source File",
+          "2_thickness_01#20260203_093652#cloud_compared_07.ply",
+          "",
+          ""
+        ]
+      ],
+      "result_main_rows": [
+        {
+          "label": "Surface Area",
+          "value": "99.7482 m²"
+        },
+        {
+          "label": "Volume",
+          "value": "2.967719 m³"
+        }
+      ],
+      "result_stats_rows": [
+        {
+          "label": "Mean Thickness",
+          "value": "209.68 mm"
+        },
+        {
+          "label": "Min Thickness",
+          "value": "41.00 mm"
+        },
+        {
+          "label": "Max Thickness",
+          "value": "500.00 mm"
+        },
+        {
+          "label": "Std Deviation",
+          "value": "103.40 mm"
+        },
+        {
+          "label": "Total Points",
+          "value": "202,339"
+        }
+      ],
+      "distribution_rows": [
+        {
+          "label": "Below Target",
+          "value": "171,026"
+        },
+        {
+          "label": "Within Target",
+          "value": "1,847"
+        },
+        {
+          "label": "Above Target",
+          "value": "29,466"
+        },
+        {
+          "label": "Target Range",
+          "value": "40.0 - 60.0 mm"
+        }
+      ]
+    },
+    {
+      "target_min": 50.0,
+      "target_max": 150.0,
+      "calculation_result": {
+        "surface_area_m2": 99.7482023350141,
+        "volume_m3": 2.9523963327071105,
+        "mean_thickness_mm": 214.33022566298797,
+        "min_thickness_mm": 51.0,
+        "max_thickness_mm": 500.0,
+        "std_thickness_mm": 101.03672252648975,
+        "num_points": 202339,
+        "area_reached_target_m2": 13.774988215378672
+      },
+      "thickness_distribution": {
+        "below_target": 171902,
+        "within_target": 9018,
+        "above_target": 21419,
+        "below_target_percent": 84.95742293873154,
+        "within_target_percent": 4.456876825525479,
+        "above_target_percent": 10.585700235742985,
+        "histogram_bins": [
+          0.0,
+          10.2,
+          20.4,
+          30.599999999999998,
+          40.8,
+          51.0,
+          61.199999999999996,
+          71.39999999999999,
+          81.6,
+          91.8,
+          102.0,
+          112.19999999999999,
+          122.39999999999999,
+          132.6,
+          142.79999999999998,
+          153.0,
+          163.2,
+          173.39999999999998,
+          183.6,
+          193.79999999999998,
+          204.0,
+          214.2,
+          224.39999999999998,
+          234.6,
+          244.79999999999998,
+          254.99999999999997,
+          265.2,
+          275.4,
+          285.59999999999997,
+          295.79999999999995,
+          306.0,
+          316.2,
+          326.4,
+          336.59999999999997,
+          346.79999999999995,
+          357.0,
+          367.2,
+          377.4,
+          387.59999999999997,
+          397.79999999999995,
+          408.0,
+          418.2,
+          428.4,
+          438.59999999999997,
+          448.79999999999995,
+          458.99999999999994,
+          469.2,
+          479.4,
+          489.59999999999997,
+          499.79999999999995,
+          510.0
+        ],
+        "histogram_counts": [
+          145294,
+          20855,
+          3638,
+          1175,
+          860,
+          967,
+          875,
+          880,
+          947,
+          919,
+          956,
+          811,
+          888,
+          903,
+          1004,
+          1131,
+          1121,
+          1283,
+          1273,
+          1221,
+          1332,
+          1189,
+          1205,
+          1034,
+          907,
+          799,
+          731,
+          698,
+          747,
+          615,
+          593,
+          521,
+          500,
+          502,
+          474,
+          520,
+          443,
+          408,
+          359,
+          324,
+          293,
+          196,
+          179,
+          121,
+          123,
+          115,
+          91,
+          80,
+          68,
+          9
+        ],
+        "target_min": 50.0,
+        "target_max": 150.0
+      },
+      "distances_hash_after_mutation": "5bfa89dbe47dace94e019ccfc2f8612eba31a78473ac4702346b2e22d1971cda",
+      "project_rows": [
+        [
+          "Site",
+          "PPS_Report_PC",
+          "Shotcrete Applied",
+          "100 (mm) ±50 mm"
+        ],
+        [
+          "Job Name",
+          "sample",
+          "Average Thickness",
+          "214 mm"
+        ],
+        [
+          "Date",
+          "03-Feb-2026",
+          "Shotcrete Volume",
+          "3.0 m³"
+        ],
+        [
+          "Time",
+          "09:36:52",
+          "Area Completed/Total",
+          "13.8 / 99.7 m² (14%)"
+        ],
+        [
+          "Source File",
+          "2_thickness_01#20260203_093652#cloud_compared_07.ply",
+          "",
+          ""
+        ]
+      ],
+      "result_main_rows": [
+        {
+          "label": "Surface Area",
+          "value": "99.7482 m²"
+        },
+        {
+          "label": "Volume",
+          "value": "2.952396 m³"
+        }
+      ],
+      "result_stats_rows": [
+        {
+          "label": "Mean Thickness",
+          "value": "214.33 mm"
+        },
+        {
+          "label": "Min Thickness",
+          "value": "51.00 mm"
+        },
+        {
+          "label": "Max Thickness",
+          "value": "500.00 mm"
+        },
+        {
+          "label": "Std Deviation",
+          "value": "101.04 mm"
+        },
+        {
+          "label": "Total Points",
+          "value": "202,339"
+        }
+      ],
+      "distribution_rows": [
+        {
+          "label": "Below Target",
+          "value": "171,902"
+        },
+        {
+          "label": "Within Target",
+          "value": "9,018"
+        },
+        {
+          "label": "Above Target",
+          "value": "21,419"
+        },
+        {
+          "label": "Target Range",
+          "value": "50.0 - 150.0 mm"
+        }
+      ]
+    }
+  ],
+  "distance_range_segment": {
+    "range": [
+      75,
+      125
+    ],
+    "num_points": 4534,
+    "points_hash": "411f4fa53b73dcc4607c9961a10e65ad59cad90bfe6d978d4708253b8bd4fa16",
+    "distances_hash": "08321c9194a6f5b73e27b305a3484a1a9667224a7220536a08bfb89d9f24f466"
+  }
+}
