@@ -15,6 +15,21 @@ from pps.render.picking import project_to_screen
 
 RGB = Tuple[float, float, float]
 
+# Extra pixels added on every side of an estimated text bbox for hit-testing
+# (selecting/dragging/double-clicking to edit). The estimate itself is only
+# approximate (no real glyph metrics without a live render), and text is a
+# thin target to begin with, so a generous margin makes it practical to
+# actually grab a note/annotation instead of missing it by a few pixels.
+_HIT_MARGIN_PX = 10
+
+# Text background used to flag the currently-selected note/annotation/
+# measurement (e.g. selected in the Project dock's tree) versus the default
+# dark translucent backing plate every label otherwise uses.
+_HIGHLIGHT_BG = (1.0, 0.65, 0.0)
+_HIGHLIGHT_OPACITY = 0.9
+_DEFAULT_BG = (0.1, 0.1, 0.1)
+_DEFAULT_OPACITY = 0.65
+
 
 def hex_to_rgb(color: str) -> RGB:
     color = color.lstrip("#")
@@ -56,7 +71,108 @@ def compute_label_bbox(
     lx, ly = ax + offset_px[0], ay + offset_px[1]
     width = max(len(text), 1) * font_size * 0.62
     height = font_size * 1.5
-    return (lx - 4, ly - 4, lx + width, ly + height)
+    m = _HIT_MARGIN_PX
+    return (lx - 4 - m, ly - 4 - m, lx + width + m, ly + height + m)
+
+
+def compute_screen_note_bbox(
+    pos_frac: Tuple[float, float], text: str, font_size: int, viewport_size: Tuple[int, int]
+) -> Tuple[float, float, float, float]:
+    """Rough (x0, y0, x1, y1) screen bounding box of a screen-space note's
+    text, for hit-testing without needing a live ScreenLabel/actor — same
+    idea as compute_label_bbox but for notes with no 3D anchor."""
+    width, height = viewport_size
+    x, y = pos_frac[0] * width, pos_frac[1] * height
+    text_width = max(len(text), 1) * font_size * 0.62
+    text_height = font_size * 1.5
+    m = _HIT_MARGIN_PX
+    return (x - 4 - m, y - 4 - m, x + text_width + m, y + text_height + m)
+
+
+class ScreenLabel:
+    """Plain 2D text drawn directly on the overlay layer at a normalized
+    viewport position — no 3D anchor, no leader line, nothing tying it to
+    the cloud. Used by the Note tool (free-floating text anywhere in the
+    view), as opposed to AnchoredLabel (used by the Annotation tool, tied
+    to a 3D point). `pos_frac` is (0..1, 0..1) in VTK's normalized-viewport
+    convention (origin bottom-left), matching Tool pointer-event coordinates
+    directly so no conversion is needed when placing/dragging one.
+    """
+
+    def __init__(
+        self,
+        overlay,
+        pos_frac: Tuple[float, float],
+        text: str,
+        color: str = "#ffd166",
+        font_size: int = 14,
+    ):
+        self._overlay = overlay
+        self.pos_frac = (float(pos_frac[0]), float(pos_frac[1]))
+        self.text = text
+        self.font_size = font_size
+
+        self._text_actor = vtk.vtkTextActor()
+        self._text_actor.SetInput(text)
+        prop = self._text_actor.GetTextProperty()
+        prop.SetFontSize(font_size)
+        prop.SetBold(True)
+        prop.SetBackgroundColor(*_DEFAULT_BG)
+        prop.SetBackgroundOpacity(_DEFAULT_OPACITY)
+        self._apply_text_color(color)
+        self._text_actor.GetPositionCoordinate().SetCoordinateSystemToNormalizedViewport()
+        self._text_actor.GetPositionCoordinate().SetValue(*self.pos_frac)
+        overlay.renderer.AddActor(self._text_actor)
+
+    # ------------------------------------------------------------------ mutation
+    def set_text(self, text: str) -> None:
+        self.text = text
+        self._text_actor.SetInput(text)
+
+    def set_pos_frac(self, pos_frac: Tuple[float, float]) -> None:
+        self.pos_frac = (float(pos_frac[0]), float(pos_frac[1]))
+        self._text_actor.GetPositionCoordinate().SetValue(*self.pos_frac)
+
+    def set_color(self, color: str) -> None:
+        self._apply_text_color(color)
+
+    def set_highlighted(self, highlighted: bool) -> None:
+        prop = self._text_actor.GetTextProperty()
+        if highlighted:
+            prop.SetBackgroundColor(*_HIGHLIGHT_BG)
+            prop.SetBackgroundOpacity(_HIGHLIGHT_OPACITY)
+        else:
+            prop.SetBackgroundColor(*_DEFAULT_BG)
+            prop.SetBackgroundOpacity(_DEFAULT_OPACITY)
+
+    def set_font_size(self, font_size: int) -> None:
+        self.font_size = font_size
+        self._text_actor.GetTextProperty().SetFontSize(font_size)
+
+    def set_visible(self, visible: bool) -> None:
+        self._text_actor.SetVisibility(visible)
+
+    # ------------------------------------------------------------------ query / hit-testing
+    def screen_pos(self, viewport_size: Tuple[int, int]) -> Tuple[float, float]:
+        width, height = viewport_size
+        return self.pos_frac[0] * width, self.pos_frac[1] * height
+
+    def screen_bbox(self, viewport_size: Tuple[int, int]) -> Tuple[float, float, float, float]:
+        return compute_screen_note_bbox(self.pos_frac, self.text, self.font_size, viewport_size)
+
+    def contains_screen_point(self, x: float, y: float, viewport_size: Tuple[int, int]) -> bool:
+        x0, y0, x1, y1 = self.screen_bbox(viewport_size)
+        return x0 <= x <= x1 and y0 <= y <= y1
+
+    # ------------------------------------------------------------------ lifecycle
+    def remove(self) -> None:
+        try:
+            self._overlay.renderer.RemoveActor(self._text_actor)
+        except Exception:
+            pass
+
+    def _apply_text_color(self, color: str) -> None:
+        self._text_actor.GetTextProperty().SetColor(*hex_to_rgb(color))
 
 
 class AnchoredLabel:
@@ -97,8 +213,8 @@ class AnchoredLabel:
         prop = self._text_actor.GetTextProperty()
         prop.SetFontSize(font_size)
         prop.SetBold(True)
-        prop.SetBackgroundColor(0.1, 0.1, 0.1)
-        prop.SetBackgroundOpacity(0.65)
+        prop.SetBackgroundColor(*_DEFAULT_BG)
+        prop.SetBackgroundOpacity(_DEFAULT_OPACITY)
         self._apply_text_color(color)
         plotter.renderer.AddActor(self._text_actor)
 
@@ -130,6 +246,15 @@ class AnchoredLabel:
     def set_font_size(self, font_size: int) -> None:
         self.font_size = font_size
         self._text_actor.GetTextProperty().SetFontSize(font_size)
+
+    def set_highlighted(self, highlighted: bool) -> None:
+        prop = self._text_actor.GetTextProperty()
+        if highlighted:
+            prop.SetBackgroundColor(*_HIGHLIGHT_BG)
+            prop.SetBackgroundOpacity(_HIGHLIGHT_OPACITY)
+        else:
+            prop.SetBackgroundColor(*_DEFAULT_BG)
+            prop.SetBackgroundOpacity(_DEFAULT_OPACITY)
 
     def set_visible(self, visible: bool) -> None:
         self._marker_actor.SetVisibility(visible)

@@ -4,7 +4,7 @@ size. All responsive per plan §6.2 — QFormLayout with WrapLongRows/
 ExpandingFieldsGrow, ElidedLabel for the (potentially long) filename.
 """
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import (
     QDockWidget,
     QDoubleSpinBox,
@@ -63,8 +63,18 @@ class PropertiesDock(QDockWidget):
         select_all_on_focus(self.spin_target_max)
         settings_form.addRow("Min target thickness:", self.spin_target_min)
         settings_form.addRow("Max target thickness:", self.spin_target_max)
-        self.spin_target_min.valueChanged.connect(self._on_targets_changed)
-        self.spin_target_max.valueChanged.connect(self._on_targets_changed)
+
+        # Recomputing/recoloring every layer on every keystroke is expensive
+        # and jittery, so the actual document update (and the heavy re-sync
+        # it triggers) is debounced 500ms after the user stops changing the
+        # value. The min/max cross-bound (max must stay > min) is still
+        # enforced immediately at the widget level, not debounced.
+        self._targets_timer = QTimer(self)
+        self._targets_timer.setSingleShot(True)
+        self._targets_timer.setInterval(500)
+        self._targets_timer.timeout.connect(self._apply_targets)
+        self.spin_target_min.valueChanged.connect(self._on_min_spin_changed)
+        self.spin_target_max.valueChanged.connect(self._on_max_spin_changed)
         layout.addWidget(settings_group)
 
         viz_group = QGroupBox("Visualization")
@@ -103,13 +113,46 @@ class PropertiesDock(QDockWidget):
         self._set_targets_silently(target_min, target_max)
 
     def _set_targets_silently(self, target_min: float, target_max: float) -> None:
-        for spin, value in ((self.spin_target_min, target_min), (self.spin_target_max, target_max)):
-            spin.blockSignals(True)
-            spin.setValue(value)
-            spin.blockSignals(False)
+        self.spin_target_min.blockSignals(True)
+        self.spin_target_max.blockSignals(True)
+        self.spin_target_min.setValue(target_min)
+        self.spin_target_max.setValue(target_max)
+        self.spin_target_min.blockSignals(False)
+        self.spin_target_max.blockSignals(False)
 
-    def _on_targets_changed(self, _value: float) -> None:
-        self.document.set_targets(self.spin_target_min.value(), self.spin_target_max.value())
+    def _on_min_spin_changed(self, value: float) -> None:
+        """Min target must stay <= max target. If min is raised past the
+        current max, max is pulled up to match it (rather than blocking the
+        edit or popping an error dialog).
+
+        This correction only reacts to the MIN spin's own changes — it must
+        NOT also run off the MAX spin's valueChanged, otherwise editing max
+        while it's equal to min fights the user: e.g. typing "70" over "60"
+        passes through an intermediate value of "7" (below min=60), which
+        would immediately get snapped back to 60 before the second digit is
+        even typed, making it impossible to raise max at all.
+        """
+        if value > self.spin_target_max.value():
+            self.spin_target_max.blockSignals(True)
+            self.spin_target_max.setValue(value)
+            self.spin_target_max.blockSignals(False)
+        self._targets_timer.start()
+
+    def _on_max_spin_changed(self, _value: float) -> None:
+        self._targets_timer.start()
+
+    def _apply_targets(self) -> None:
+        min_value = self.spin_target_min.value()
+        max_value = self.spin_target_max.value()
+        if min_value > max_value:
+            # Only reachable by directly typing a smaller max while min is
+            # left alone (mid-typing dips are allowed, see _on_min_spin_changed) —
+            # settle on the same rule once the debounce actually applies it.
+            max_value = min_value
+            self.spin_target_max.blockSignals(True)
+            self.spin_target_max.setValue(max_value)
+            self.spin_target_max.blockSignals(False)
+        self.document.set_targets(min_value, max_value)
 
     def _on_point_size_spin_changed(self, value: int) -> None:
         self.point_size_changed.emit(value)

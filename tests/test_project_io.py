@@ -96,6 +96,31 @@ def test_save_and_load_project_round_trip(sample_ply_path, tmp_path, qtbot):
     np.testing.assert_array_equal(area_m.sources[0].indices, np.array([0, 1, 2, 3, 4]))
 
 
+def test_load_project_survives_deleted_source_layer(sample_ply_path, tmp_path, qtbot):
+    """Regression: a segment used to be rebuilt by re-slicing its source
+    layer's points at load time, so deleting the source layer (e.g. via
+    multi-select bulk delete) before saving made every later load crash with
+    a NoneType error. Segments now carry their own baked points/distances."""
+    doc = _build_document_with_content(sample_ply_path)
+    original = doc.layer_manager.original
+    segment = doc.layer_manager.get("MySegment")
+    segment_points = segment.points.copy()
+    segment_distances = segment.distances.copy()
+
+    doc.layer_manager.remove_by_id(original.id)
+
+    project_path = str(tmp_path / "test_deleted_source.ppsproj")
+    save_project(doc, project_path)
+
+    loaded = Document()
+    load_project(loaded, project_path, load_ply)
+
+    restored = loaded.layer_manager.get("MySegment")
+    assert restored is not None
+    np.testing.assert_array_equal(restored.points, segment_points)
+    np.testing.assert_array_equal(restored.distances, segment_distances)
+
+
 def test_save_and_load_project_round_trip_with_camera(sample_ply_path, tmp_path, qtbot):
     doc = _build_document_with_content(sample_ply_path)
     camera_state = {

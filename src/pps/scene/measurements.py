@@ -15,6 +15,7 @@ Point3D = Tuple[float, float, float]
 class DistanceMeasurement:
     p1: Point3D
     p2: Point3D
+    layer_id: Optional[str] = None  # which segment this belongs to, for the Project tree
     label_offset_px: Tuple[int, int] = (20, 20)
     color: str = "#4cc9f0"
     visible: bool = True
@@ -36,6 +37,7 @@ class AreaMeasurement:
     sources: List[SourceRef]
     centroid: Point3D
     area_m2: Optional[float] = None  # None while a background calc is running
+    layer_id: Optional[str] = None  # which segment this belongs to, for the Project tree
     label_offset_px: Tuple[int, int] = (20, 20)
     color: str = "#4cc9f0"
     visible: bool = True

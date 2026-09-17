@@ -73,6 +73,7 @@ class MeasureAreaTool(RegionSelectTool):
             sources=sources,
             centroid=centroid,
             area_m2=None,
+            layer_id=sources[0].layer_id,
         )
         self.ctx.undo_stack.push(AddMeasurementCommand(document, measurement))
         self.ctx.set_status("Calculating area…")

@@ -69,8 +69,9 @@ def test_extract_segment_hides_other_layers_and_selects_new_one(main_window, sam
     assert original.visible is False
     assert segment.visible is True
 
-    current_item = main_window.project_dock.list_widget.currentItem()
-    assert current_item.data(Qt.ItemDataRole.UserRole) == segment.id
+    dock = main_window.project_dock
+    current_item = dock.list_widget.currentItem()
+    assert dock.item_id(current_item) == segment.id
 
 
 def test_full_flow_matches_golden_baseline(main_window, sample_ply_path, tmp_path, qtbot):
@@ -257,9 +258,9 @@ def test_project_dock_bulk_delete_removes_multiple_segments_in_one_undo_step(
 
     project_dock = main_window.project_dock
     project_dock.list_widget.clearSelection()
-    for i in range(project_dock.list_widget.count()):
-        item = project_dock.list_widget.item(i)
-        if item.data(Qt.ItemDataRole.UserRole) in segment_ids:
+    for i in range(project_dock.list_widget.topLevelItemCount()):
+        item = project_dock.list_widget.topLevelItem(i)
+        if project_dock.item_id(item) in segment_ids:
             item.setSelected(True)
 
     selected_items = project_dock.list_widget.selectedItems()
@@ -274,22 +275,25 @@ def test_project_dock_bulk_delete_removes_multiple_segments_in_one_undo_step(
     assert len(main_window.document.layer_manager.layers) == 3
 
 
-def test_objects_dock_bulk_delete_removes_multiple_selected_objects(main_window, sample_ply_path):
+def test_project_dock_bulk_delete_removes_multiple_selected_objects(main_window, sample_ply_path):
     from pps.scene.annotations import NoteAnnotation
     from pps.scene.commands import AddNoteCommand
 
     main_window._load_file(sample_ply_path)
     doc = main_window.document
-    doc.undo_stack.push(AddNoteCommand(doc, NoteAnnotation(anchor=(0.0, 0.0, 0.0), text="a")))
-    doc.undo_stack.push(AddNoteCommand(doc, NoteAnnotation(anchor=(1.0, 0.0, 0.0), text="b")))
+    original_id = doc.layer_manager.original.id
+    doc.undo_stack.push(AddNoteCommand(doc, NoteAnnotation(anchor=(0.0, 0.0, 0.0), text="a", layer_id=original_id)))
+    doc.undo_stack.push(AddNoteCommand(doc, NoteAnnotation(anchor=(1.0, 0.0, 0.0), text="b", layer_id=original_id)))
 
-    dock = main_window.objects_dock
-    assert dock.list_widget.count() == 2
-    dock.list_widget.selectAll()
+    dock = main_window.project_dock
+    layer_item = dock.list_widget.topLevelItem(0)
+    assert layer_item.childCount() == 2
+    note_items = [layer_item.child(i) for i in range(layer_item.childCount())]
+    for item in note_items:
+        item.setSelected(True)
 
-    dock._on_delete()
+    dock._delete_objects([(dock.item_kind(i), dock.item_id(i)) for i in note_items])
 
-    assert dock.list_widget.count() == 0
     assert len(doc.annotations) == 0
 
     doc.undo_stack.undo()  # one macro undoes both deletes

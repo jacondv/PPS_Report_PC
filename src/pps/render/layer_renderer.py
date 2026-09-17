@@ -3,12 +3,12 @@ Maps a Layer's thickness values to RGB colors and keeps a pyvista actor per
 layer in sync with the Document.
 
 Color thresholds replicate PointCloudViewer.assign_colors() from the old
-gui/viewer_3d.py exactly (including the fact that the "above max" and "far"
-buckets are both blue) — this must not change without an explicit decision,
-since it affects report screenshots. Every layer (original AND segments) is
-colored this way — a segment is a subset of the same thickness data, so it
-gets the same red/green/blue classification instead of an arbitrary flat
-color, and the below/within/above colors are user-configurable (Settings).
+gui/viewer_3d.py, collapsed to exactly 3 bands (below / within / above) —
+this must not change without an explicit decision, since it affects report
+screenshots. Every layer (original AND segments) is colored this way — a
+segment is a subset of the same thickness data, so it gets the same
+red/green/blue classification instead of an arbitrary flat color, and the
+below/within/above colors are user-configurable (Settings).
 """
 
 from typing import Dict, Optional, Tuple
@@ -18,14 +18,11 @@ import pyvista as pv
 
 from pps.core.layers import Layer
 
-FAR_THRESHOLD_MM = 150.0
-
 ColorRGB = Tuple[float, float, float]
 
 DEFAULT_COLOR_BELOW: ColorRGB = (1.0, 0.0, 0.0)
 DEFAULT_COLOR_WITHIN: ColorRGB = (0.0, 1.0, 0.0)
 DEFAULT_COLOR_ABOVE: ColorRGB = (0.0, 0.0, 1.0)
-DEFAULT_COLOR_FAR: ColorRGB = (0.0, 0.0, 1.0)
 
 
 def threshold_colors(
@@ -35,13 +32,11 @@ def threshold_colors(
     color_below: ColorRGB = DEFAULT_COLOR_BELOW,
     color_within: ColorRGB = DEFAULT_COLOR_WITHIN,
     color_above: ColorRGB = DEFAULT_COLOR_ABOVE,
-    color_far: ColorRGB = DEFAULT_COLOR_FAR,
 ) -> np.ndarray:
     colors = np.zeros((len(distances), 3), dtype=np.float32)
     colors[distances < target_min] = color_below
     colors[(distances >= target_min) & (distances <= target_max)] = color_within
-    colors[(distances > target_max) & (distances < FAR_THRESHOLD_MM)] = color_above
-    colors[distances >= FAR_THRESHOLD_MM] = color_far
+    colors[distances > target_max] = color_above
     return colors
 
 
@@ -83,7 +78,6 @@ class LayerRenderer:
             color_below=self._color_below,
             color_within=self._color_within,
             color_above=self._color_above,
-            color_far=self._color_above,
         )
 
         actor = self._plotter.add_mesh(

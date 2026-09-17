@@ -6,8 +6,8 @@ the per-session "Point size" live slider in Properties dock (Settings holds
 the persisted *default* used the next time a layer is (re)colored).
 """
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QColorDialog,
     QComboBox,
@@ -27,26 +27,40 @@ _SWATCH_SIZE = 28
 
 
 class _ColorSwatchButton(QPushButton):
-    """A small button showing its assigned color as a filled swatch; click
-    opens a QColorDialog to change it."""
+    """A normal-styled push button carrying a colored square icon that
+    represents its assigned color; click opens a QColorDialog to change it.
+
+    Deliberately shows the color as an icon rather than via the button's own
+    `background-color`: the latter fights the app theme's QSS (hover/pressed
+    states repaint the real background), so the color never read reliably.
+    """
+
+    _ICON_MARGIN = 6
 
     def __init__(self, hex_color: str, parent=None):
         super().__init__(parent)
         self.setFixedSize(_SWATCH_SIZE, _SWATCH_SIZE)
+        self.setIconSize(QSize(_SWATCH_SIZE - self._ICON_MARGIN, _SWATCH_SIZE - self._ICON_MARGIN))
         self._hex_color = hex_color
-        self._apply_style()
+        self._apply_icon()
         self.clicked.connect(self._pick_color)
 
-    def _apply_style(self) -> None:
-        self.setStyleSheet(
-            f"background-color: {self._hex_color}; border: 1px solid #333a47; border-radius: 3px;"
-        )
+    def _apply_icon(self) -> None:
+        size = self.iconSize()
+        pixmap = QPixmap(size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setPen(QColor("#333a47"))
+        painter.setBrush(QColor(self._hex_color))
+        painter.drawRect(0, 0, size.width() - 1, size.height() - 1)
+        painter.end()
+        self.setIcon(QIcon(pixmap))
 
     def _pick_color(self) -> None:
         color = QColorDialog.getColor(QColor(self._hex_color), self, "Choose color")
         if color.isValid():
             self._hex_color = color.name()
-            self._apply_style()
+            self._apply_icon()
 
     @property
     def hex_color(self) -> str:

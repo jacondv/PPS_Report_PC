@@ -66,3 +66,27 @@ def test_sync_one_rebuilds_on_text_change():
 
     assert renderer._labels[note.id] is not first
     assert renderer._labels[note.id].text == "b"
+
+
+def test_sync_one_builds_a_screen_label_for_a_note_with_no_anchor():
+    from pps.render.labels import ScreenLabel
+
+    renderer = make_renderer()
+    note = NoteAnnotation(text="free text", screen_pos_frac=(0.3, 0.7))
+
+    renderer.sync_one(note)
+
+    label = renderer._labels[note.id]
+    assert isinstance(label, ScreenLabel)
+    assert label.text == "free text"
+    assert label.pos_frac == (0.3, 0.7)
+
+
+def test_sync_all_handles_a_mix_of_anchored_and_screen_notes():
+    renderer = make_renderer()
+    anchored = NoteAnnotation(anchor=(0.0, 0.0, 0.0), text="anchored")
+    screen = NoteAnnotation(text="screen", screen_pos_frac=(0.1, 0.1))
+
+    renderer.sync_all([anchored, screen])
+
+    assert set(renderer._labels) == {anchored.id, screen.id}

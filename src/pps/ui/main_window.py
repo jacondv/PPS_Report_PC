@@ -16,7 +16,6 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBo
 
 import pyvista as pv
 
-from pps.app.dialogs import open_note_editor
 from pps.app.settings import AppSettings
 from pps.app.workers import AreaMeasureWorker, CalculationWorker
 from pps.core.filename_parser import parse_filename
@@ -37,12 +36,13 @@ from pps.tools.manager import ToolManager
 from pps.tools.measure_area import MeasureAreaTool
 from pps.tools.measure_distance import MeasureDistanceTool
 from pps.tools.navigate import NavigateTool
+from pps.tools.annotation import AnnotationTool
 from pps.tools.note import NoteTool
 from pps.tools.region_select import RegionSelectTool
 from pps.ui.dialogs.about_dialog import show_about
 from pps.ui.dialogs.settings_dialog import SettingsDialog
 from pps.ui.dialogs.shortcuts_dialog import ShortcutsDialog
-from pps.ui.docks.objects_dock import ObjectsDock
+from pps.ui.widgets.inline_note_editor import open_inline_note_editor
 from pps.ui.docks.project_dock import ProjectDock
 from pps.ui.docks.properties_dock import PropertiesDock
 from pps.ui.docks.results_dock import ResultsDock
@@ -116,13 +116,18 @@ class MainWindow(QMainWindow):
     def _register_tools(self) -> None:
         self.region_select_tool = RegionSelectTool()
         self.measure_area_tool = MeasureAreaTool(area_requester=self._request_area_calculation)
-        self.note_tool = NoteTool(note_editor=lambda existing: open_note_editor(existing, parent=self))
+        self.note_tool = NoteTool(note_editor=self._open_note_editor)
+        self.annotation_tool = AnnotationTool(note_editor=self._open_note_editor)
 
         self.tool_manager.register(NavigateTool())
         self.tool_manager.register(self.region_select_tool)
         self.tool_manager.register(MeasureDistanceTool())
         self.tool_manager.register(self.measure_area_tool)
         self.tool_manager.register(self.note_tool)
+        self.tool_manager.register(self.annotation_tool)
+
+    def _open_note_editor(self, existing, screen_pos):
+        return open_inline_note_editor(self.viewport.interactor_widget, screen_pos, existing)
 
     def _request_area_calculation(self, points, on_done) -> None:
         worker = AreaMeasureWorker("", points, parent=self)
@@ -148,15 +153,15 @@ class MainWindow(QMainWindow):
         )
         self.properties_dock = PropertiesDock(self.document, self)
         self.results_dock = ResultsDock(self)
-        self.objects_dock = ObjectsDock(self.document, self)
 
         self.properties_dock.point_size_changed.connect(self._on_point_size_changed)
+        self.project_dock.object_selected.connect(self._on_object_selected_in_tree)
+        self.project_dock.move_requested.connect(self._on_move_requested)
 
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.project_dock)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.selection_dock)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.properties_dock)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.results_dock)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.objects_dock)
 
     # ------------------------------------------------------------------ toolbars / menus
     def _build_toolbars(self) -> None:
@@ -241,7 +246,7 @@ class MainWindow(QMainWindow):
         view_menu = menu_bar.addMenu("&View")
         for dock in (
             self.project_dock, self.selection_dock, self.properties_dock,
-            self.results_dock, self.objects_dock,
+            self.results_dock,
         ):
             view_menu.addAction(dock.toggleViewAction())
         view_menu.addSeparator()
@@ -286,8 +291,8 @@ class MainWindow(QMainWindow):
         self._clear_selection_highlight()
         for layer in self.document.layer_manager.layers:
             self.layer_renderer.sync(layer, self.document.target_min, self.document.target_max, self._point_size)
-        self.note_renderer.sync_all(self.document.annotations)
-        self.measurement_renderer.sync_all(self.document.measurements)
+        self.note_renderer.sync_all(self.document.annotations, self.document.layer_manager)
+        self.measurement_renderer.sync_all(self.document.measurements, self.document.layer_manager)
 
         if self.document.camera_state is not None:
             camera.set_camera_state(self.viewport.plotter, self.document.camera_state)
@@ -323,6 +328,14 @@ class MainWindow(QMainWindow):
         layer = self.document.layer_manager.get_by_id(layer_id)
         if layer is not None:
             self.layer_renderer.set_visible(layer_id, layer.visible)
+            # Notes/measurements belonging to this segment hide/show along
+            # with it, regardless of their own visible flag.
+            for note in self.document.annotations:
+                if note.layer_id == layer_id:
+                    self.note_renderer.sync_one(note, layer.visible)
+            for measurement in self.document.measurements:
+                if measurement.layer_id == layer_id:
+                    self.measurement_renderer.sync_one(measurement, layer.visible)
             self.viewport.render()
 
     def _on_targets_changed(self, target_min: float, target_max: float) -> None:
@@ -364,7 +377,8 @@ class MainWindow(QMainWindow):
     def _on_note_upserted(self, note_id: str) -> None:
         note = self.document._find_note(note_id)
         if note is not None:
-            self.note_renderer.sync_one(note)
+            layer = self.document.layer_manager.get_by_id(note.layer_id)
+            self.note_renderer.sync_one(note, layer_visible=layer.visible if layer is not None else True)
         self.viewport.render()
 
     def _on_note_removed(self, note_id: str) -> None:
@@ -374,12 +388,41 @@ class MainWindow(QMainWindow):
     def _on_measurement_upserted(self, measurement_id: str) -> None:
         measurement = self.document._find_measurement(measurement_id)
         if measurement is not None:
-            self.measurement_renderer.sync_one(measurement)
+            layer = self.document.layer_manager.get_by_id(measurement.layer_id)
+            self.measurement_renderer.sync_one(
+                measurement, layer_visible=layer.visible if layer is not None else True
+            )
         self.viewport.render()
 
     def _on_measurement_removed(self, measurement_id: str) -> None:
         self.measurement_renderer.remove(measurement_id)
         self.viewport.render()
+
+    # ------------------------------------------------------------------ Project tree selection
+    def _on_object_selected_in_tree(self, kind: str, object_id: str) -> None:
+        """Selecting a note/annotation/measurement in the Project dock's
+        tree highlights it in the 3D view."""
+        if kind == "note":
+            self.note_renderer.set_highlighted(object_id)
+            self.measurement_renderer.set_highlighted(None)
+        else:
+            self.measurement_renderer.set_highlighted(object_id)
+            self.note_renderer.set_highlighted(None)
+        self.viewport.render()
+
+    def _on_move_requested(self, kind: str, object_id: str) -> None:
+        """"Move" from the Project dock's context menu: switch to whichever
+        tool (Note or Annotation) owns this object and pre-select it, so the
+        very next drag in the 3D view moves it — the cursor changes to that
+        tool's own cursor as soon as it activates."""
+        note = self.document._find_note(object_id)
+        if note is None:
+            return
+        tool_id = "note" if note.is_screen_note else "annotation"
+        self.tool_manager.activate(tool_id)
+        tool = self.note_tool if tool_id == "note" else self.annotation_tool
+        tool.select(object_id)
+        self.statusBar().showMessage("Drag it in the 3D view to move it.")
 
     def _on_dirty_changed(self, dirty: bool) -> None:
         self._update_window_title()
@@ -613,7 +656,6 @@ class MainWindow(QMainWindow):
             action.setIcon(load_icon(icon_name, color))
 
         self.selection_dock.set_icon_color(color)
-        self.objects_dock.set_icon_color(color)
 
     # ------------------------------------------------------------------ Calculate
     def _on_calculate(self) -> None:

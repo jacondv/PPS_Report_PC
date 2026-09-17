@@ -92,7 +92,8 @@ class MeasureDistanceTool(Tool):
         self.ctx.request_render()
 
     def _finish(self, p1: Point3D, p2: Point3D) -> None:
-        measurement = DistanceMeasurement(p1=tuple(p1), p2=tuple(p2))
+        layer_id = self.ctx.document.layer_manager.nearest_layer_id(p1)
+        measurement = DistanceMeasurement(p1=tuple(p1), p2=tuple(p2), layer_id=layer_id)
         self.ctx.undo_stack.push(AddMeasurementCommand(self.ctx.document, measurement))
 
         self._first_point = None

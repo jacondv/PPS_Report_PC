@@ -72,7 +72,7 @@ class NoteEditorDialog(QDialog):
         }
 
 
-def open_note_editor(existing=None, parent=None) -> Optional[dict]:
+def open_note_editor(existing=None, screen_pos=None, parent=None) -> Optional[dict]:
     """Show NoteEditorDialog modally; `existing` (a NoteAnnotation or None)
     pre-fills the fields for editing. Returns the chosen {text, color,
     font_size}, or None if cancelled or the text was left empty."""

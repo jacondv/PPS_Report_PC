@@ -25,21 +25,21 @@ class MeasurementRenderer:
         self._line_actors: Dict[str, vtk.vtkActor] = {}
         self._boundary_actors: Dict[str, vtk.vtkActor2D] = {}
 
-    def sync_all(self, measurements: Iterable[Measurement]) -> None:
+    def sync_all(self, measurements: Iterable[Measurement], layer_manager=None) -> None:
         measurements = list(measurements)
         wanted_ids = {m.id for m in measurements}
         for stale_id in set(self._labels) - wanted_ids:
             self.remove(stale_id)
         for measurement in measurements:
-            self.sync_one(measurement)
+            self.sync_one(measurement, layer_visible=_layer_visible(layer_manager, measurement.layer_id))
 
-    def sync_one(self, measurement: Measurement) -> None:
+    def sync_one(self, measurement: Measurement, layer_visible: bool = True) -> None:
         self.remove(measurement.id)  # rebuild from scratch: simplest correct approach
 
         if isinstance(measurement, DistanceMeasurement):
-            self._sync_distance(measurement)
+            self._sync_distance(measurement, layer_visible)
         else:
-            self._sync_area(measurement)
+            self._sync_area(measurement, layer_visible)
 
     def remove(self, measurement_id: str) -> None:
         label = self._labels.pop(measurement_id, None)
@@ -64,8 +64,15 @@ class MeasurementRenderer:
         for measurement_id in list(self._labels) + list(self._line_actors) + list(self._boundary_actors):
             self.remove(measurement_id)
 
+    def set_highlighted(self, measurement_id) -> None:
+        """Highlight exactly one measurement's label (or none), e.g.
+        following selection in the Project dock's tree."""
+        for mid, label in self._labels.items():
+            label.set_highlighted(mid == measurement_id)
+
     # ------------------------------------------------------------------ distance
-    def _sync_distance(self, measurement: DistanceMeasurement) -> None:
+    def _sync_distance(self, measurement: DistanceMeasurement, layer_visible: bool) -> None:
+        visible = measurement.visible and layer_visible
         line_source = vtk.vtkLineSource()
         line_source.SetPoint1(*measurement.p1)
         line_source.SetPoint2(*measurement.p2)
@@ -75,7 +82,7 @@ class MeasurementRenderer:
         actor.SetMapper(mapper)
         actor.GetProperty().SetColor(*hex_to_rgb(measurement.color))
         actor.GetProperty().SetLineWidth(2.0)
-        actor.SetVisibility(measurement.visible)
+        actor.SetVisibility(visible)
         self._plotter.renderer.AddActor(actor)
         self._line_actors[measurement.id] = actor
 
@@ -89,11 +96,12 @@ class MeasurementRenderer:
             color=measurement.color,
             marker_radius=0.0,  # the line itself marks the segment; no extra sphere
         )
-        label.set_visible(measurement.visible)
+        label.set_visible(visible)
         self._labels[measurement.id] = label
 
     # ------------------------------------------------------------------ area
-    def _sync_area(self, measurement: AreaMeasurement) -> None:
+    def _sync_area(self, measurement: AreaMeasurement, layer_visible: bool) -> None:
+        visible = measurement.visible and layer_visible
         # boundary_px_at_creation is a snapshot of screen pixels at the
         # moment the region was drawn — it does NOT track the camera
         # afterward (that would need re-projecting the original 3D
@@ -106,7 +114,7 @@ class MeasurementRenderer:
                 line_width=2.0,
                 opacity=0.7,
             )
-            actor.SetVisibility(measurement.visible)
+            actor.SetVisibility(visible)
             self._overlay.renderer.AddActor(actor)
             self._boundary_actors[measurement.id] = actor
 
@@ -119,10 +127,17 @@ class MeasurementRenderer:
             offset_px=measurement.label_offset_px,
             color=measurement.color,
         )
-        label.set_visible(measurement.visible)
+        label.set_visible(visible)
         self._labels[measurement.id] = label
 
 
 def _midpoint(p1: Tuple[float, float, float], p2: Tuple[float, float, float]) -> Tuple[float, float, float]:
     mid = (np.asarray(p1) + np.asarray(p2)) / 2.0
     return (float(mid[0]), float(mid[1]), float(mid[2]))
+
+
+def _layer_visible(layer_manager, layer_id) -> bool:
+    if layer_manager is None or layer_id is None:
+        return True
+    layer = layer_manager.get_by_id(layer_id)
+    return True if layer is None else layer.visible

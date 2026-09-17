@@ -102,21 +102,25 @@ class DeleteNoteCommand(QUndoCommand):
 
 
 class MoveNoteCommand(QUndoCommand):
-    """Drag a note's screen-space label offset."""
+    """Drag a note: for an anchored note (Annotation tool) this updates
+    `label_offset_px` (screen-space offset from its 3D anchor); for a
+    screen note (Note tool, no anchor) this updates `screen_pos_frac`
+    (its absolute normalized-viewport position) instead."""
 
-    def __init__(self, document, note_id, new_offset_px):
+    def __init__(self, document, note_id, new_offset_px=None, field="label_offset_px", new_value=None):
         super().__init__("Move note")
         self.document = document
         self._note_id = note_id
-        self._new_offset = new_offset_px
-        self._old_offset = None
+        self._field = field
+        self._new_value = new_value if new_value is not None else new_offset_px
+        self._old_value = None
 
     def redo(self):
-        old = self.document._update_note(self._note_id, label_offset_px=self._new_offset)
-        self._old_offset = old["label_offset_px"]
+        old = self.document._update_note(self._note_id, **{self._field: self._new_value})
+        self._old_value = old[self._field]
 
     def undo(self):
-        self.document._update_note(self._note_id, label_offset_px=self._old_offset)
+        self.document._update_note(self._note_id, **{self._field: self._old_value})
 
 
 class EditNoteCommand(QUndoCommand):

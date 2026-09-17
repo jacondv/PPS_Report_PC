@@ -1,9 +1,16 @@
 """
 .ppsproj project file: a zip containing project.json plus one .npy file per
-segment source (index arrays), so segments can be rebuilt from the original
-PLY without re-selecting anything.
+non-original layer (its own points + distances), so segments load back
+exactly as they were without depending on any other layer still existing.
 
-Calculation results are never saved — they are always recomputed after
+Segments used to be rebuilt by re-slicing their source layer's points with
+saved indices, but that breaks (NoneType) if the source layer was since
+deleted (e.g. via multi-select bulk delete) -- segments now carry their own
+baked geometry in the project file instead, same as the original layer's
+PLY-backed points. The `sources` list is still recorded for information
+only; it is not required to reconstruct a layer.
+
+Calculation results are never saved -- they are always recomputed after
 loading, so a stored report number can never drift from the current
 calculator code.
 """
@@ -17,18 +24,23 @@ from typing import Callable
 
 import numpy as np
 
+from pps.core.filename_parser import parse_filename
 from pps.core.layers import Layer, SourceRef
 from pps.scene.annotations import NoteAnnotation
 from pps.scene.document import Document
 from pps.scene.measurements import AreaMeasurement, DistanceMeasurement
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 
 PlyLoader = Callable[[str, str], object]  # (filepath, distance_field) -> PointCloudData-like
 
 
-def _segment_entry_name(layer_id: str, source_index: int) -> str:
-    return f"segments/{layer_id}__{source_index}.npy"
+def _layer_points_entry(layer_id: str) -> str:
+    return f"layers/{layer_id}__points.npy"
+
+
+def _layer_distances_entry(layer_id: str) -> str:
+    return f"layers/{layer_id}__distances.npy"
 
 
 def _tuple(values, length):
@@ -49,20 +61,25 @@ def save_project(document: Document, path: str, camera_state: dict = None) -> No
     npy_entries = {}
 
     for layer in document.layer_manager.layers:
-        sources_data = []
-        for i, ref in enumerate(layer.sources):
-            entry_name = _segment_entry_name(layer.id, i)
-            npy_entries[entry_name] = ref.indices
-            sources_data.append({"layer_id": ref.layer_id, "indices_file": entry_name})
-
-        layers_data.append({
+        entry = {
             "id": layer.id,
             "name": layer.name,
             "is_original": layer.is_original,
             "visible": layer.visible,
             "color": list(layer.color) if layer.color is not None else None,
-            "sources": sources_data,
-        })
+            "sources": [
+                {"layer_id": ref.layer_id, "indices": ref.indices.tolist()}
+                for ref in layer.sources
+            ],
+        }
+        if not layer.is_original:
+            points_entry = _layer_points_entry(layer.id)
+            distances_entry = _layer_distances_entry(layer.id)
+            npy_entries[points_entry] = layer.points
+            npy_entries[distances_entry] = layer.distances
+            entry["points_file"] = points_entry
+            entry["distances_file"] = distances_entry
+        layers_data.append(entry)
 
     project = {
         "format_version": FORMAT_VERSION,
@@ -79,9 +96,9 @@ def save_project(document: Document, path: str, camera_state: dict = None) -> No
 
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("project.json", json.dumps(project, indent=2))
-        for name, indices in npy_entries.items():
+        for name, array in npy_entries.items():
             buf = io.BytesIO()
-            np.save(buf, indices)
+            np.save(buf, array)
             zf.writestr(name, buf.getvalue())
 
     document.mark_clean()
@@ -123,7 +140,10 @@ def _measurement_from_dict(data: dict):
 
 def _note_from_dict(data: dict) -> NoteAnnotation:
     data = dict(data)
-    data["anchor"] = _tuple(data["anchor"], 3)
+    data["anchor"] = _tuple(data["anchor"], 3) if data.get("anchor") is not None else None
+    data["screen_pos_frac"] = (
+        _tuple(data["screen_pos_frac"], 2) if data.get("screen_pos_frac") is not None else None
+    )
     data["label_offset_px"] = _tuple(data["label_offset_px"], 2)
     return NoteAnnotation(**data)
 
@@ -142,11 +162,16 @@ def load_project(document: Document, path: str, ply_loader: PlyLoader) -> Layer:
 
         document._clear_state()
         document.source_path = ply_path
+        document.project_info = parse_filename(ply_path)
         document.distance_field = project["distance_field"]
         document.target_min = project["target_min"]
         document.target_max = project["target_max"]
 
         for layer_data in project["layers"]:
+            sources = [
+                SourceRef(layer_id=s["layer_id"], indices=np.array(s["indices"], dtype=np.uint32))
+                for s in layer_data.get("sources", [])
+            ]
             if layer_data["is_original"]:
                 layer = Layer(
                     id=layer_data["id"],
@@ -158,19 +183,13 @@ def load_project(document: Document, path: str, ply_loader: PlyLoader) -> Layer:
                     color=None,
                 )
             else:
-                sources = []
-                points_parts, distances_parts = [], []
-                for src in layer_data["sources"]:
-                    source_layer = document.layer_manager.get_by_id(src["layer_id"])
-                    indices = np.load(io.BytesIO(zf.read(src["indices_file"])))
-                    sources.append(SourceRef(layer_id=src["layer_id"], indices=indices))
-                    points_parts.append(source_layer.points[indices])
-                    distances_parts.append(source_layer.distances[indices])
+                points = np.load(io.BytesIO(zf.read(layer_data["points_file"])))
+                distances = np.load(io.BytesIO(zf.read(layer_data["distances_file"])))
                 layer = Layer(
                     id=layer_data["id"],
                     name=layer_data["name"],
-                    points=np.concatenate(points_parts),
-                    distances=np.concatenate(distances_parts),
+                    points=points,
+                    distances=distances,
                     visible=layer_data["visible"],
                     is_original=False,
                     color=tuple(layer_data["color"]) if layer_data["color"] else None,

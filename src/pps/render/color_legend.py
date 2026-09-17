@@ -115,13 +115,17 @@ class ColorLegend:
         self._border = _line_actor(4, closed=True)
         self._renderer.AddActor(self._border[0])
 
+        self._tick_zero = _line_actor(2)
         self._tick_min = _line_actor(2)
         self._tick_max = _line_actor(2)
+        self._renderer.AddActor(self._tick_zero[0])
         self._renderer.AddActor(self._tick_min[0])
         self._renderer.AddActor(self._tick_max[0])
 
+        self._label_zero = _label_actor()
         self._label_min = _label_actor()
         self._label_max = _label_actor()
+        self._renderer.AddActor(self._label_zero)
         self._renderer.AddActor(self._label_min)
         self._renderer.AddActor(self._label_max)
 
@@ -146,6 +150,10 @@ class ColorLegend:
         border_points.Modified()
 
         tick_x1 = x1 - _TICK_LENGTH
+        zero_points = self._tick_zero[1]
+        zero_points.SetPoint(0, tick_x1, y0, 0.0)
+        zero_points.SetPoint(1, x1, y0, 0.0)
+        zero_points.Modified()
         min_points = self._tick_min[1]
         min_points.SetPoint(0, tick_x1, y_min, 0.0)
         min_points.SetPoint(1, x1, y_min, 0.0)
@@ -156,6 +164,8 @@ class ColorLegend:
         max_points.Modified()
 
         label_x = tick_x1 - _LABEL_GAP
+        self._label_zero.SetInput(_format_mm(0))
+        self._label_zero.GetPositionCoordinate().SetValue(label_x, y0)
         self._label_min.SetInput(_format_mm(target_min))
         self._label_min.GetPositionCoordinate().SetValue(label_x, y_min)
         self._label_max.SetInput(_format_mm(target_max))
@@ -165,7 +175,9 @@ class ColorLegend:
         for actor, _points in self._bands:
             actor.SetVisibility(visible)
         self._border[0].SetVisibility(visible)
+        self._tick_zero[0].SetVisibility(visible)
         self._tick_min[0].SetVisibility(visible)
         self._tick_max[0].SetVisibility(visible)
+        self._label_zero.SetVisibility(visible)
         self._label_min.SetVisibility(visible)
         self._label_max.SetVisibility(visible)

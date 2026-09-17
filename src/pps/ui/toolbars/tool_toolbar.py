@@ -14,6 +14,7 @@ _TOOLS = [
     ("measure_distance", "Distance", "D", "measure_distance"),
     ("measure_area", "Area", "A", "measure_area"),
     ("note", "Note", "N", "note"),
+    ("annotation", "Annotation", "G", "annotation"),
 ]
 
 
