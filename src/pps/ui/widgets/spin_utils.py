@@ -14,10 +14,13 @@ class _SelectAllOnFocusFilter(QObject):
 
 
 def select_all_on_focus(spin_box) -> None:
-    """Install on any QAbstractSpinBox (QSpinBox/QDoubleSpinBox). Focus is
-    proxied to the box's internal QLineEdit, so the filter is installed
-    there rather than on the spin box widget itself."""
-    line_edit = spin_box.lineEdit()
-    filter_ = _SelectAllOnFocusFilter(line_edit)
-    line_edit.installEventFilter(filter_)
+    """Install on any QAbstractSpinBox (QSpinBox/QDoubleSpinBox).
+
+    QAbstractSpinBox does NOT use a Qt focus-proxy relationship to its
+    internal line edit — QEvent.FocusIn is delivered to the spin box widget
+    itself (confirmed by tracing events; `spin_box.focusProxy()` is None) —
+    so the filter must be installed there, not on `spin_box.lineEdit()`.
+    """
+    filter_ = _SelectAllOnFocusFilter(spin_box)
+    spin_box.installEventFilter(filter_)
     spin_box._select_all_filter = filter_  # keep a strong reference alive

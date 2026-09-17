@@ -23,6 +23,7 @@ from pps.core.filename_parser import parse_filename
 from pps.core.job_info import resolve_targets
 from pps.core.ply_loader import get_ply_fields, load_ply
 from pps.render import camera
+from pps.render.color_legend import ColorLegend
 from pps.render.labels import hex_to_rgb
 from pps.render.layer_renderer import LayerRenderer
 from pps.render.measurement_renderer import MeasurementRenderer
@@ -83,7 +84,9 @@ class MainWindow(QMainWindow):
         self.layer_renderer = LayerRenderer(self.viewport.plotter)
         self.note_renderer = NoteRenderer(self.viewport.plotter, self.viewport.overlay)
         self.measurement_renderer = MeasurementRenderer(self.viewport.plotter, self.viewport.overlay)
+        self.color_legend = ColorLegend(self.viewport.overlay_renderer)
         self._sync_layer_renderer_colors()
+        self.color_legend.set_visible(False)
 
         self.tool_manager = ToolManager(self._build_tool_context, self.viewport.interactor_widget, self)
         self._register_tools()
@@ -292,7 +295,15 @@ class MainWindow(QMainWindow):
         else:
             camera.reset_view(self.viewport.plotter)
         self.tool_manager.on_document_reset()
-        self.tool_toolbar.set_cloud_loaded(self.document.layer_manager.original is not None)
+        has_cloud = self.document.layer_manager.original is not None
+        self.tool_toolbar.set_cloud_loaded(has_cloud)
+        self.color_legend.update(
+            hex_to_rgb(self.settings_store.color_below),
+            hex_to_rgb(self.settings_store.color_within),
+            hex_to_rgb(self.settings_store.color_above),
+            self.document.target_min, self.document.target_max,
+        )
+        self.color_legend.set_visible(has_cloud)
         self._calc_result = None
         self._thickness_dist = None
         self.results_dock.clear_result()
@@ -317,6 +328,12 @@ class MainWindow(QMainWindow):
     def _on_targets_changed(self, target_min: float, target_max: float) -> None:
         for layer in self.document.layer_manager.layers:
             self.layer_renderer.sync(layer, target_min, target_max, self._point_size)
+        self.color_legend.update(
+            hex_to_rgb(self.settings_store.color_below),
+            hex_to_rgb(self.settings_store.color_within),
+            hex_to_rgb(self.settings_store.color_above),
+            target_min, target_max,
+        )
         self.viewport.render()
 
     def _on_point_size_changed(self, size: int) -> None:
@@ -563,6 +580,12 @@ class MainWindow(QMainWindow):
         self._point_size = self.settings_store.point_size
         for layer in self.document.layer_manager.layers:
             self.layer_renderer.sync(layer, self.document.target_min, self.document.target_max, self._point_size)
+        self.color_legend.update(
+            hex_to_rgb(self.settings_store.color_below),
+            hex_to_rgb(self.settings_store.color_within),
+            hex_to_rgb(self.settings_store.color_above),
+            self.document.target_min, self.document.target_max,
+        )
         self.properties_dock.set_point_size_silently(self._point_size)
         self._apply_icon_colors()
         self.viewport.render()
