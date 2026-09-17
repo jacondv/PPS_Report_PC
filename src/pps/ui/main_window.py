@@ -12,16 +12,18 @@ import tempfile
 
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox
+from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
 
 import pyvista as pv
 
 from pps.app.dialogs import open_note_editor
+from pps.app.settings import AppSettings
 from pps.app.workers import AreaMeasureWorker, CalculationWorker
 from pps.core.filename_parser import parse_filename
 from pps.core.job_info import resolve_targets
 from pps.core.ply_loader import get_ply_fields, load_ply
 from pps.render import camera
+from pps.render.labels import hex_to_rgb
 from pps.render.layer_renderer import LayerRenderer
 from pps.render.measurement_renderer import MeasurementRenderer
 from pps.render.note_renderer import NoteRenderer
@@ -37,12 +39,14 @@ from pps.tools.navigate import NavigateTool
 from pps.tools.note import NoteTool
 from pps.tools.region_select import RegionSelectTool
 from pps.ui.dialogs.about_dialog import show_about
+from pps.ui.dialogs.settings_dialog import SettingsDialog
 from pps.ui.dialogs.shortcuts_dialog import ShortcutsDialog
 from pps.ui.docks.objects_dock import ObjectsDock
 from pps.ui.docks.project_dock import ProjectDock
 from pps.ui.docks.properties_dock import PropertiesDock
 from pps.ui.docks.results_dock import ResultsDock
 from pps.ui.docks.selection_dock import SelectionDock
+from pps.ui.theme import apply_theme
 from pps.ui.toolbars.tool_toolbar import ToolToolbar
 from pps.ui.toolbars.view_toolbar import ViewToolbar
 
@@ -61,9 +65,10 @@ class MainWindow(QMainWindow):
         self.resize(1400, 900)
 
         self.settings = QSettings("TunnelAnalyzer", "TunnelConcreteThicknessAnalyzer")
+        self.settings_store = AppSettings(self)
 
         self.document = Document(self)
-        self._point_size = 2
+        self._point_size = self.settings_store.point_size
         self._calc_result = None
         self._thickness_dist = None
         self._selection_highlight_actor = None
@@ -76,15 +81,18 @@ class MainWindow(QMainWindow):
         self.layer_renderer = LayerRenderer(self.viewport.plotter)
         self.note_renderer = NoteRenderer(self.viewport.plotter, self.viewport.overlay)
         self.measurement_renderer = MeasurementRenderer(self.viewport.plotter, self.viewport.overlay)
+        self._sync_layer_renderer_colors()
 
         self.tool_manager = ToolManager(self._build_tool_context, self.viewport.interactor_widget, self)
         self._register_tools()
 
         self._build_docks()
+        self.properties_dock.set_point_size_silently(self._point_size)
         self._build_toolbars()
         self._build_menus()
 
         self._connect_document_signals()
+        self.settings_store.changed.connect(self._on_display_settings_changed)
 
         self._restore_window_state()
 
@@ -232,6 +240,11 @@ class MainWindow(QMainWindow):
         action_reset_layout = QAction("Reset Layout", self)
         action_reset_layout.triggered.connect(self._reset_layout)
         view_menu.addAction(action_reset_layout)
+
+        settings_menu = menu_bar.addMenu("&Settings")
+        action_preferences = QAction("Preferences…", self)
+        action_preferences.triggered.connect(self._on_open_settings)
+        settings_menu.addAction(action_preferences)
 
         help_menu = menu_bar.addMenu("&Help")
         action_shortcuts = QAction("Keyboard Shortcuts", self)
@@ -522,6 +535,30 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard_unsaved():
             return
         self._open_project_path(filepath)
+
+    # ------------------------------------------------------------------ Settings
+    def _on_open_settings(self) -> None:
+        dialog = SettingsDialog(self.settings_store, self)
+        dialog.exec()
+
+    def _sync_layer_renderer_colors(self) -> None:
+        self.layer_renderer.set_classification_colors(
+            hex_to_rgb(self.settings_store.color_below),
+            hex_to_rgb(self.settings_store.color_within),
+            hex_to_rgb(self.settings_store.color_above),
+        )
+
+    def _on_display_settings_changed(self) -> None:
+        app = QApplication.instance()
+        if app is not None:
+            apply_theme(app, self.settings_store.theme)
+
+        self._sync_layer_renderer_colors()
+        self._point_size = self.settings_store.point_size
+        for layer in self.document.layer_manager.layers:
+            self.layer_renderer.sync(layer, self.document.target_min, self.document.target_max, self._point_size)
+        self.properties_dock.set_point_size_silently(self._point_size)
+        self.viewport.render()
 
     # ------------------------------------------------------------------ Calculate
     def _on_calculate(self) -> None:

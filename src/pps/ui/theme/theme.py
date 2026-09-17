@@ -1,13 +1,14 @@
 """
-Dark, technical theme: tokens -> QSS + QPalette. Accent color is kept
-separate from the red/green/blue thickness-classification colors used in
-the 3D view, so the two color systems never get visually confused.
+Theme: tokens -> QSS + QPalette, for both a dark and a light variant. Accent
+color is kept separate from the red/green/blue thickness-classification
+colors used in the 3D view, so the two color systems never get visually
+confused.
 """
 
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
-TOKENS = {
+DARK_TOKENS = {
     "bg0": "#14171c",       # window background
     "bg1": "#1b1f27",       # panel/dock background (matches Viewport.BACKGROUND_COLOR)
     "bg2": "#242933",       # input/list background
@@ -20,15 +21,31 @@ TOKENS = {
     "success": "#3ecf8e",
 }
 
+LIGHT_TOKENS = {
+    "bg0": "#f4f5f7",
+    "bg1": "#e9ebef",
+    "bg2": "#ffffff",
+    "border": "#c7ccd4",
+    "text": "#1c2027",
+    "text_muted": "#6b7280",
+    "accent": "#1f78e0",
+    "accent_hover": "#3f8fe8",
+    "danger": "#d23c3c",
+    "success": "#1f9d63",
+}
 
-def apply_theme(app: QApplication) -> None:
+# Kept for callers that still import the old module-level name directly.
+TOKENS = DARK_TOKENS
+
+
+def apply_theme(app: QApplication, mode: str = "dark") -> None:
+    tokens = LIGHT_TOKENS if mode == "light" else DARK_TOKENS
     app.setStyle("Fusion")
-    app.setPalette(_build_palette())
-    app.setStyleSheet(_build_qss())
+    app.setPalette(_build_palette(tokens))
+    app.setStyleSheet(_build_qss(tokens))
 
 
-def _build_palette() -> QPalette:
-    t = TOKENS
+def _build_palette(t: dict) -> QPalette:
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.Window, QColor(t["bg0"]))
     palette.setColor(QPalette.ColorRole.WindowText, QColor(t["text"]))
@@ -51,8 +68,7 @@ def _build_palette() -> QPalette:
     return palette
 
 
-def _build_qss() -> str:
-    t = TOKENS
+def _build_qss(t: dict) -> str:
     return f"""
     QWidget {{
         background-color: {t["bg0"]};
@@ -125,13 +141,20 @@ def _build_qss() -> str:
         border-radius: 4px;
         padding: 4px;
     }}
-    QToolButton:hover {{
+    QToolButton:enabled:hover {{
         background-color: {t["bg2"]};
         border-color: {t["border"]};
     }}
-    QToolButton:checked {{
+    QToolButton:enabled:checked {{
         background-color: {t["accent"]};
+        border-color: {t["accent"]};
         color: #ffffff;
+        font-weight: 600;
+    }}
+    QToolButton:disabled {{
+        color: {t["text_muted"]};
+        background: transparent;
+        border-color: transparent;
     }}
     QMenuBar {{
         background-color: {t["bg1"]};

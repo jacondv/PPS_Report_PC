@@ -10,6 +10,8 @@ import os
 import pytest
 from PySide6.QtCore import Qt
 
+from pps.app.settings import THEME_DARK, THEME_LIGHT
+from pps.ui.dialogs.settings_dialog import SettingsDialog
 from pps.ui.main_window import MainWindow
 
 
@@ -194,6 +196,37 @@ def test_close_with_unsaved_changes_prompts_and_can_cancel(main_window, sample_p
     event = QCloseEvent()
     main_window.closeEvent(event)
     assert not event.isAccepted()
+
+
+def test_settings_dialog_updates_theme_colors_point_size_and_resyncs_layers(
+    main_window, sample_ply_path
+):
+    main_window._load_file(sample_ply_path)
+    original = main_window.document.layer_manager.original
+
+    dialog = SettingsDialog(main_window.settings_store, main_window)
+    dialog.theme_combo.setCurrentIndex(dialog.theme_combo.findData(THEME_LIGHT))
+    dialog.point_size_spin.setValue(6)
+    dialog.swatch_below._hex_color = "#123456"
+    dialog.swatch_within._hex_color = "#654321"
+    dialog.swatch_above._hex_color = "#abcdef"
+
+    dialog._on_accept()
+
+    assert main_window.settings_store.theme == THEME_LIGHT
+    assert main_window.settings_store.point_size == 6
+    assert main_window.settings_store.color_below == "#123456"
+    assert main_window._point_size == 6
+    assert main_window.properties_dock.spin_point_size.value() == 6
+
+    actor = main_window.layer_renderer.get(original.id)
+    assert actor is not None  # layer was re-synced (rebuilt), not left stale
+
+    # restore defaults so this doesn't leak into other tests/real app usage
+    main_window.settings_store.apply_updates(
+        theme=THEME_DARK, point_size=2,
+        color_below="#ff0000", color_within="#00ff00", color_above="#0000ff",
+    )
 
 
 def test_close_with_unsaved_changes_discard_proceeds(main_window, sample_ply_path, monkeypatch):

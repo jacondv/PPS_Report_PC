@@ -69,7 +69,7 @@ class PropertiesDock(QDockWidget):
         self.spin_point_size = QSpinBox()
         self.spin_point_size.setRange(1, 10)
         self.spin_point_size.setValue(2)
-        self.spin_point_size.valueChanged.connect(self.point_size_changed)
+        self.spin_point_size.valueChanged.connect(self._on_point_size_spin_changed)
         viz_form.addRow("Point size:", self.spin_point_size)
         layout.addWidget(viz_group)
 
@@ -106,3 +106,14 @@ class PropertiesDock(QDockWidget):
 
     def _on_targets_changed(self, _value: float) -> None:
         self.document.set_targets(self.spin_target_min.value(), self.spin_target_max.value())
+
+    def _on_point_size_spin_changed(self, value: int) -> None:
+        self.point_size_changed.emit(value)
+
+    def set_point_size_silently(self, value: int) -> None:
+        """Reflect a point size change made elsewhere (Settings dialog)
+        without re-emitting point_size_changed and re-triggering the sync
+        that's already happening as a result of that change."""
+        self.spin_point_size.blockSignals(True)
+        self.spin_point_size.setValue(value)
+        self.spin_point_size.blockSignals(False)

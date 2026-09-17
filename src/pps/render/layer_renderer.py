@@ -5,7 +5,10 @@ layer in sync with the Document.
 Color thresholds replicate PointCloudViewer.assign_colors() from the old
 gui/viewer_3d.py exactly (including the fact that the "above max" and "far"
 buckets are both blue) — this must not change without an explicit decision,
-since it affects report screenshots.
+since it affects report screenshots. Every layer (original AND segments) is
+colored this way — a segment is a subset of the same thickness data, so it
+gets the same red/green/blue classification instead of an arbitrary flat
+color, and the below/within/above colors are user-configurable (Settings).
 """
 
 from typing import Dict, Optional, Tuple
@@ -48,6 +51,18 @@ class LayerRenderer:
     def __init__(self, plotter):
         self._plotter = plotter
         self._actors: Dict[str, object] = {}
+        self._color_below = DEFAULT_COLOR_BELOW
+        self._color_within = DEFAULT_COLOR_WITHIN
+        self._color_above = DEFAULT_COLOR_ABOVE
+
+    def set_classification_colors(
+        self, color_below: ColorRGB, color_within: ColorRGB, color_above: ColorRGB
+    ) -> None:
+        """Update the below/within/above RGB colors used by `sync()` (does
+        not itself re-sync existing actors — call sync() again for that)."""
+        self._color_below = color_below
+        self._color_within = color_within
+        self._color_above = color_above
 
     def sync(
         self,
@@ -61,12 +76,15 @@ class LayerRenderer:
 
         cloud = pv.PolyData(layer.points)
         cloud["thickness"] = layer.distances
-        if layer.color is None:
-            cloud["colors"] = threshold_colors(layer.distances, target_min, target_max)
-        else:
-            cloud["colors"] = np.tile(
-                np.asarray(layer.color, dtype=np.float32), (layer.num_points, 1)
-            )
+        cloud["colors"] = threshold_colors(
+            layer.distances,
+            target_min,
+            target_max,
+            color_below=self._color_below,
+            color_within=self._color_within,
+            color_above=self._color_above,
+            color_far=self._color_above,
+        )
 
         actor = self._plotter.add_mesh(
             cloud,

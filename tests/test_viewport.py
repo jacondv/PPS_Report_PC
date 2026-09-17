@@ -28,6 +28,57 @@ def test_threshold_colors_matches_old_assign_colors():
     assert colors[3].tolist() == [0.0, 0.0, 1.0]   # far (>= 150) -> blue
 
 
+def test_layer_renderer_colors_segments_by_thickness_not_flat_color():
+    """A segment carries a distinct SEGMENT_COLORS entry (Layer.color) for
+    potential future use (e.g. a legend), but the 3D view must classify it
+    by thickness like the original layer — not paint it a flat solid color."""
+    distances = np.array([10.0, 50.0, 200.0])
+    points = np.zeros((3, 3))
+    segment = LayerManager().build_segment(points, distances, sources=[])
+    assert segment.color is not None  # sanity: a distinct color WAS assigned
+
+    plotter = _FakePlotter()
+    renderer = LayerRenderer(plotter)
+    renderer.sync(segment, target_min=40, target_max=60, point_size=2)
+
+    colors = plotter.last_cloud["colors"]
+    assert colors[0].tolist() == [1.0, 0.0, 0.0]   # below -> red
+    assert colors[1].tolist() == [0.0, 1.0, 0.0]   # within -> green
+    assert colors[2].tolist() == [0.0, 0.0, 1.0]   # above -> blue
+
+
+def test_layer_renderer_set_classification_colors_changes_output():
+    distances = np.array([10.0])
+    points = np.zeros((1, 3))
+    layer = LayerManager().set_original("original", points, distances)
+
+    plotter = _FakePlotter()
+    renderer = LayerRenderer(plotter)
+    renderer.set_classification_colors((0.1, 0.2, 0.3), (0.4, 0.5, 0.6), (0.7, 0.8, 0.9))
+    renderer.sync(layer, target_min=40, target_max=60, point_size=2)
+
+    colors = plotter.last_cloud["colors"]
+    assert colors[0].tolist() == pytest.approx([0.1, 0.2, 0.3], abs=1e-6)
+
+
+class _FakePlotter:
+    """Minimal stand-in for pyvista's Plotter — just enough for
+    LayerRenderer.sync()/remove() to run without a real render window,
+    while capturing the cloud passed to add_mesh() for assertions."""
+
+    def add_mesh(self, cloud, **kwargs):
+        self.last_cloud = cloud
+        return _FakeActor()
+
+    def remove_actor(self, actor):
+        pass
+
+
+class _FakeActor:
+    def SetVisibility(self, _visible):
+        pass
+
+
 def test_viewport_renders_layer_and_overlay(qtbot, sample_ply_path, tmp_path):
     cloud = load_ply(sample_ply_path, "distances")
     layer_manager = LayerManager()

@@ -1,0 +1,88 @@
+"""
+Persisted, app-wide display preferences: theme (Light/Dark), the three
+thickness-classification colors, and default point size.
+
+These are user preferences, not project data — they live in QSettings (like
+window geometry) rather than in Document/.ppsproj, so they carry over
+between files/projects and across sessions.
+"""
+
+from PySide6.QtCore import QObject, QSettings, Signal
+
+THEME_DARK = "dark"
+THEME_LIGHT = "light"
+
+DEFAULT_THEME = THEME_DARK
+DEFAULT_COLOR_BELOW = "#ff0000"   # thickness < target_min
+DEFAULT_COLOR_WITHIN = "#00ff00"  # target_min <= thickness <= target_max
+DEFAULT_COLOR_ABOVE = "#0000ff"   # thickness > target_max
+DEFAULT_POINT_SIZE = 2
+
+_SETTINGS_GROUP = "display"
+
+
+class AppSettings(QObject):
+    """Thin QSettings wrapper; emits `changed` after any value is written so
+    listeners (MainWindow) can re-apply theme/colors/point size in one
+    place."""
+
+    changed = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._settings = QSettings("TunnelAnalyzer", "TunnelConcreteThicknessAnalyzer")
+
+    def _get(self, key: str, default, value_type):
+        return self._settings.value(f"{_SETTINGS_GROUP}/{key}", default, type=value_type)
+
+    def _set(self, key: str, value) -> None:
+        self._settings.setValue(f"{_SETTINGS_GROUP}/{key}", value)
+        self.changed.emit()
+
+    @property
+    def theme(self) -> str:
+        return str(self._get("theme", DEFAULT_THEME, str))
+
+    @theme.setter
+    def theme(self, value: str) -> None:
+        self._set("theme", value)
+
+    @property
+    def color_below(self) -> str:
+        return str(self._get("color_below", DEFAULT_COLOR_BELOW, str))
+
+    @color_below.setter
+    def color_below(self, value: str) -> None:
+        self._set("color_below", value)
+
+    @property
+    def color_within(self) -> str:
+        return str(self._get("color_within", DEFAULT_COLOR_WITHIN, str))
+
+    @color_within.setter
+    def color_within(self, value: str) -> None:
+        self._set("color_within", value)
+
+    @property
+    def color_above(self) -> str:
+        return str(self._get("color_above", DEFAULT_COLOR_ABOVE, str))
+
+    @color_above.setter
+    def color_above(self, value: str) -> None:
+        self._set("color_above", value)
+
+    @property
+    def point_size(self) -> int:
+        return int(self._get("point_size", DEFAULT_POINT_SIZE, int))
+
+    @point_size.setter
+    def point_size(self, value: int) -> None:
+        self._set("point_size", int(value))
+
+    def apply_updates(self, **values) -> None:
+        """Write several settings at once, emitting `changed` only once —
+        used by SettingsDialog so accepting the dialog doesn't trigger a
+        theme/color re-apply per individual field."""
+        for key, value in values.items():
+            self._settings.setValue(f"{_SETTINGS_GROUP}/{key}", value)
+        self.changed.emit()
