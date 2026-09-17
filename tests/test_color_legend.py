@@ -65,11 +65,33 @@ def test_legend_set_visible_hides_all_actors(qtbot):
     legend.set_visible(False)
     for actor, _points in legend._bands:
         assert actor.GetVisibility() == 0
+    assert legend._border[0].GetVisibility() == 0
+    assert legend._tick_min[0].GetVisibility() == 0
+    assert legend._tick_max[0].GetVisibility() == 0
     assert legend._label_min.GetVisibility() == 0
     assert legend._label_max.GetVisibility() == 0
 
     legend.set_visible(True)
     for actor, _points in legend._bands:
         assert actor.GetVisibility() == 1
+    assert legend._border[0].GetVisibility() == 1
+
+    viewport.close()
+
+
+def test_legend_labels_show_mm_unit_and_are_legible_black_on_white(qtbot):
+    viewport = Viewport()
+    qtbot.addWidget(viewport)
+
+    legend = ColorLegend(viewport.overlay_renderer)
+    legend.update((1, 0, 0), (0, 1, 0), (0, 0, 1), 40, 60)
+
+    assert legend._label_min.GetInput() == "40 mm"
+    assert legend._label_max.GetInput() == "60 mm"
+
+    for label in (legend._label_min, legend._label_max):
+        prop = label.GetTextProperty()
+        assert prop.GetColor() == (0.0, 0.0, 0.0)  # black text
+        assert prop.GetBackgroundOpacity() > 0  # backing plate for legibility
 
     viewport.close()
