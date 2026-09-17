@@ -32,7 +32,7 @@ class ProjectDock(QDockWidget):
 
         self.list_widget = QListWidget()
         self.list_widget.setMinimumWidth(160)
-        self.list_widget.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.list_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.list_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list_widget.customContextMenuRequested.connect(self._on_context_menu)
         self.list_widget.itemChanged.connect(self._on_item_changed)
@@ -98,6 +98,18 @@ class ProjectDock(QDockWidget):
         item = self.list_widget.itemAt(pos)
         if item is None:
             return
+
+        selected = self.list_widget.selectedItems()
+        if item not in selected:
+            # Right-clicked outside the current selection: act on just that
+            # item, like a fresh click would.
+            self.list_widget.setCurrentItem(item)
+            selected = [item]
+
+        if len(selected) > 1:
+            self._show_bulk_context_menu(pos, selected)
+            return
+
         layer_id = item.data(Qt.ItemDataRole.UserRole)
         layer = self.document.layer_manager.get_by_id(layer_id)
         if layer is None:
@@ -118,3 +130,29 @@ class ProjectDock(QDockWidget):
                 self.document.undo_stack.push(RenameLayerCommand(self.document, layer_id, new_name))
         elif act_delete is not None and chosen == act_delete:
             self.document.undo_stack.push(RemoveLayerCommand(self.document, layer_id))
+
+    def _show_bulk_context_menu(self, pos, selected_items) -> None:
+        deletable_ids = self._deletable_layer_ids(selected_items)
+        if not deletable_ids:
+            return
+
+        menu = QMenu(self)
+        act_delete = menu.addAction(f"Delete {len(deletable_ids)} layers")
+        chosen = menu.exec(self.list_widget.mapToGlobal(pos))
+        if chosen == act_delete:
+            self._delete_layers(deletable_ids)
+
+    def _deletable_layer_ids(self, items) -> list:
+        # The original layer can't be deleted — silently exclude it from a
+        # bulk delete rather than blocking the whole action over it.
+        layer_ids = [item.data(Qt.ItemDataRole.UserRole) for item in items]
+        return [
+            lid for lid in layer_ids
+            if (layer := self.document.layer_manager.get_by_id(lid)) is not None and not layer.is_original
+        ]
+
+    def _delete_layers(self, layer_ids) -> None:
+        self.document.undo_stack.beginMacro(f"Delete {len(layer_ids)} layers")
+        for layer_id in layer_ids:
+            self.document.undo_stack.push(RemoveLayerCommand(self.document, layer_id))
+        self.document.undo_stack.endMacro()

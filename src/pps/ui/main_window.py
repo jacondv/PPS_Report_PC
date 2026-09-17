@@ -46,7 +46,8 @@ from pps.ui.docks.project_dock import ProjectDock
 from pps.ui.docks.properties_dock import PropertiesDock
 from pps.ui.docks.results_dock import ResultsDock
 from pps.ui.docks.selection_dock import SelectionDock
-from pps.ui.theme import apply_theme
+from pps.ui.icons import load_icon
+from pps.ui.theme import apply_theme, get_tokens
 from pps.ui.toolbars.tool_toolbar import ToolToolbar
 from pps.ui.toolbars.view_toolbar import ViewToolbar
 
@@ -77,6 +78,7 @@ class MainWindow(QMainWindow):
 
         self.viewport = Viewport(self)
         self.setCentralWidget(self.viewport)
+        self.viewport.set_background(self.settings_store.background_color)
 
         self.layer_renderer = LayerRenderer(self.viewport.plotter)
         self.note_renderer = NoteRenderer(self.viewport.plotter, self.viewport.overlay)
@@ -90,6 +92,7 @@ class MainWindow(QMainWindow):
         self.properties_dock.set_point_size_silently(self._point_size)
         self._build_toolbars()
         self._build_menus()
+        self._apply_icon_colors()
 
         self._connect_document_signals()
         self.settings_store.changed.connect(self._on_display_settings_changed)
@@ -156,6 +159,7 @@ class MainWindow(QMainWindow):
     def _build_toolbars(self) -> None:
         main_toolbar = self.addToolBar("Main")
         main_toolbar.setObjectName("toolbar_main")
+        main_toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
 
         self.action_open = QAction("Open PLY…", self)
         self.action_open.setShortcut(QKeySequence.StandardKey.Open)
@@ -184,7 +188,8 @@ class MainWindow(QMainWindow):
 
         self.tool_toolbar = ToolToolbar(self.tool_manager, self)
         self.addToolBar(self.tool_toolbar)
-        self.addToolBar(ViewToolbar(self.viewport, self))
+        self.view_toolbar = ViewToolbar(self.viewport, self)
+        self.addToolBar(self.view_toolbar)
 
         self.action_select_all = QAction("Select All", self)
         self.action_select_all.setShortcut(QKeySequence.StandardKey.SelectAll)
@@ -242,9 +247,9 @@ class MainWindow(QMainWindow):
         view_menu.addAction(action_reset_layout)
 
         settings_menu = menu_bar.addMenu("&Settings")
-        action_preferences = QAction("Preferences…", self)
-        action_preferences.triggered.connect(self._on_open_settings)
-        settings_menu.addAction(action_preferences)
+        self.action_preferences = QAction("Preferences…", self)
+        self.action_preferences.triggered.connect(self._on_open_settings)
+        settings_menu.addAction(self.action_preferences)
 
         help_menu = menu_bar.addMenu("&Help")
         action_shortcuts = QAction("Keyboard Shortcuts", self)
@@ -554,11 +559,38 @@ class MainWindow(QMainWindow):
             apply_theme(app, self.settings_store.theme)
 
         self._sync_layer_renderer_colors()
+        self.viewport.set_background(self.settings_store.background_color)
         self._point_size = self.settings_store.point_size
         for layer in self.document.layer_manager.layers:
             self.layer_renderer.sync(layer, self.document.target_min, self.document.target_max, self._point_size)
         self.properties_dock.set_point_size_silently(self._point_size)
+        self._apply_icon_colors()
         self.viewport.render()
+
+    def _apply_icon_colors(self) -> None:
+        """Icons are baked to a solid color at load time (QIcon doesn't do
+        CSS currentColor), so re-render them to match the active theme's
+        text color whenever the theme changes."""
+        color = get_tokens(self.settings_store.theme)["text"]
+
+        self.tool_toolbar.set_icon_color(color)
+        self.view_toolbar.set_icon_color(color)
+
+        for action, icon_name in (
+            (self.action_open, "open"),
+            (self.action_undo, "undo"),
+            (self.action_redo, "redo"),
+            (self.action_calculate, "calculate"),
+            (self.action_export_pdf, "export_pdf"),
+            (self.action_save_project, "save"),
+            (self.action_save_project_as, "save"),
+            (self.action_open_project, "open"),
+            (self.action_preferences, "settings"),
+        ):
+            action.setIcon(load_icon(icon_name, color))
+
+        self.selection_dock.set_icon_color(color)
+        self.objects_dock.set_icon_color(color)
 
     # ------------------------------------------------------------------ Calculate
     def _on_calculate(self) -> None:

@@ -229,6 +229,73 @@ def test_settings_dialog_updates_theme_colors_point_size_and_resyncs_layers(
     )
 
 
+def test_project_dock_bulk_delete_removes_multiple_segments_in_one_undo_step(
+    main_window, sample_ply_path
+):
+    main_window._load_file(sample_ply_path)
+    original_id = main_window.document.layer_manager.original.id
+    dock = main_window.selection_dock
+
+    dock.spin_from.setValue(75)
+    dock.spin_to.setValue(125)
+    dock._on_filter_clicked()
+    dock._on_extract_segment()
+
+    # Extract hides every other layer (including the original) so the new
+    # segment is the only thing shown — re-show the original so the next
+    # filter has the full cloud to search, like a user re-checking it would.
+    main_window.document.set_layer_visible(original_id, True)
+
+    dock.spin_from.setValue(0)
+    dock.spin_to.setValue(50)
+    dock._on_filter_clicked()
+    dock._on_extract_segment()
+
+    layers = main_window.document.layer_manager.layers
+    assert len(layers) == 3  # original + 2 segments
+    segment_ids = [l.id for l in layers if l.id != original_id]
+
+    project_dock = main_window.project_dock
+    project_dock.list_widget.clearSelection()
+    for i in range(project_dock.list_widget.count()):
+        item = project_dock.list_widget.item(i)
+        if item.data(Qt.ItemDataRole.UserRole) in segment_ids:
+            item.setSelected(True)
+
+    selected_items = project_dock.list_widget.selectedItems()
+    assert len(selected_items) == 2
+    project_dock._delete_layers(project_dock._deletable_layer_ids(selected_items))
+
+    remaining = main_window.document.layer_manager.layers
+    assert len(remaining) == 1
+    assert remaining[0].id == original_id
+
+    main_window.document.undo_stack.undo()  # one macro undoes both deletes
+    assert len(main_window.document.layer_manager.layers) == 3
+
+
+def test_objects_dock_bulk_delete_removes_multiple_selected_objects(main_window, sample_ply_path):
+    from pps.scene.annotations import NoteAnnotation
+    from pps.scene.commands import AddNoteCommand
+
+    main_window._load_file(sample_ply_path)
+    doc = main_window.document
+    doc.undo_stack.push(AddNoteCommand(doc, NoteAnnotation(anchor=(0.0, 0.0, 0.0), text="a")))
+    doc.undo_stack.push(AddNoteCommand(doc, NoteAnnotation(anchor=(1.0, 0.0, 0.0), text="b")))
+
+    dock = main_window.objects_dock
+    assert dock.list_widget.count() == 2
+    dock.list_widget.selectAll()
+
+    dock._on_delete()
+
+    assert dock.list_widget.count() == 0
+    assert len(doc.annotations) == 0
+
+    doc.undo_stack.undo()  # one macro undoes both deletes
+    assert len(doc.annotations) == 2
+
+
 def test_close_with_unsaved_changes_discard_proceeds(main_window, sample_ply_path, monkeypatch):
     from PySide6.QtGui import QCloseEvent
     from PySide6.QtWidgets import QMessageBox

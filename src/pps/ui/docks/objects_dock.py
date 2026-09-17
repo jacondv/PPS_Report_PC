@@ -5,6 +5,7 @@ visibility, delete (undoable).
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QDockWidget,
     QHBoxLayout,
     QListWidget,
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import (
 
 from pps.scene.commands import DeleteMeasurementCommand, DeleteNoteCommand
 from pps.scene.measurements import DistanceMeasurement
+from pps.ui.icons import load_icon
 
 _KIND_NOTE = "note"
 _KIND_DISTANCE = "distance"
@@ -34,15 +36,16 @@ class ObjectsDock(QDockWidget):
 
         self.list_widget = QListWidget()
         self.list_widget.setMinimumWidth(180)
+        self.list_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         layout.addWidget(self.list_widget)
 
         button_row = QHBoxLayout()
-        btn_toggle = QPushButton("Show/Hide")
-        btn_toggle.clicked.connect(self._on_toggle_visible)
-        btn_delete = QPushButton("Delete")
-        btn_delete.clicked.connect(self._on_delete)
-        button_row.addWidget(btn_toggle)
-        button_row.addWidget(btn_delete)
+        self.btn_toggle = QPushButton("Show/Hide")
+        self.btn_toggle.clicked.connect(self._on_toggle_visible)
+        self.btn_delete = QPushButton("Delete")
+        self.btn_delete.clicked.connect(self._on_delete)
+        button_row.addWidget(self.btn_toggle)
+        button_row.addWidget(self.btn_delete)
         layout.addLayout(button_row)
 
         self.setWidget(content)
@@ -74,32 +77,37 @@ class ObjectsDock(QDockWidget):
             item.setData(Qt.ItemDataRole.UserRole, (kind, measurement.id))
             self.list_widget.addItem(item)
 
-    def _current(self):
-        item = self.list_widget.currentItem()
-        if item is None:
-            return None
-        return item.data(Qt.ItemDataRole.UserRole)
+    def set_icon_color(self, color: str) -> None:
+        self.btn_toggle.setIcon(load_icon("eye", color))
+        self.btn_delete.setIcon(load_icon("delete", color))
+
+    def _selected(self):
+        return [item.data(Qt.ItemDataRole.UserRole) for item in self.list_widget.selectedItems()]
 
     def _on_toggle_visible(self) -> None:
-        current = self._current()
-        if current is None:
+        selected = self._selected()
+        if not selected:
             return
-        kind, object_id = current
-        if kind == _KIND_NOTE:
-            note = self.document._find_note(object_id)
-            if note is not None:
-                self.document.set_note_visible(object_id, not note.visible)
-        else:
-            measurement = self.document._find_measurement(object_id)
-            if measurement is not None:
-                self.document.set_measurement_visible(object_id, not measurement.visible)
+        for kind, object_id in selected:
+            if kind == _KIND_NOTE:
+                note = self.document._find_note(object_id)
+                if note is not None:
+                    self.document.set_note_visible(object_id, not note.visible)
+            else:
+                measurement = self.document._find_measurement(object_id)
+                if measurement is not None:
+                    self.document.set_measurement_visible(object_id, not measurement.visible)
 
     def _on_delete(self) -> None:
-        current = self._current()
-        if current is None:
+        selected = self._selected()
+        if not selected:
             return
-        kind, object_id = current
-        if kind == _KIND_NOTE:
-            self.document.undo_stack.push(DeleteNoteCommand(self.document, object_id))
-        else:
-            self.document.undo_stack.push(DeleteMeasurementCommand(self.document, object_id))
+        if len(selected) > 1:
+            self.document.undo_stack.beginMacro(f"Delete {len(selected)} objects")
+        for kind, object_id in selected:
+            if kind == _KIND_NOTE:
+                self.document.undo_stack.push(DeleteNoteCommand(self.document, object_id))
+            else:
+                self.document.undo_stack.push(DeleteMeasurementCommand(self.document, object_id))
+        if len(selected) > 1:
+            self.document.undo_stack.endMacro()

@@ -20,6 +20,8 @@ from PySide6.QtWidgets import (
 
 from pps.scene.commands import AddSegmentCommand
 from pps.tools.region_select import RegionMode
+from pps.ui.icons import load_icon
+from pps.ui.widgets.spin_utils import select_all_on_focus
 
 _MODE_LABELS = {
     RegionMode.POLYGON: "Polygon",
@@ -57,9 +59,11 @@ class SelectionDock(QDockWidget):
         self.spin_from = QDoubleSpinBox()
         self.spin_from.setRange(-99999, 99999)
         self.spin_from.setValue(75)
+        select_all_on_focus(self.spin_from)
         self.spin_to = QDoubleSpinBox()
         self.spin_to.setRange(-99999, 99999)
         self.spin_to.setValue(125)
+        select_all_on_focus(self.spin_to)
         range_row.addWidget(QLabel("From:"))
         range_row.addWidget(self.spin_from)
         range_row.addWidget(QLabel("To:"))
@@ -82,24 +86,24 @@ class SelectionDock(QDockWidget):
         actions_layout.addWidget(self.lbl_selection_count)
 
         row1 = QHBoxLayout()
-        btn_select_all = QPushButton("Select All")
-        btn_select_all.clicked.connect(self._on_select_all)
-        btn_invert = QPushButton("Invert")
-        btn_invert.clicked.connect(self._on_invert)
-        btn_clear = QPushButton("Clear")
-        btn_clear.clicked.connect(self._on_clear)
-        row1.addWidget(btn_select_all)
-        row1.addWidget(btn_invert)
-        row1.addWidget(btn_clear)
+        self.btn_select_all = QPushButton("Select All")
+        self.btn_select_all.clicked.connect(self._on_select_all)
+        self.btn_invert = QPushButton("Invert")
+        self.btn_invert.clicked.connect(self._on_invert)
+        self.btn_clear = QPushButton("Clear")
+        self.btn_clear.clicked.connect(self._on_clear)
+        row1.addWidget(self.btn_select_all)
+        row1.addWidget(self.btn_invert)
+        row1.addWidget(self.btn_clear)
         actions_layout.addLayout(row1)
 
-        btn_extract = QPushButton("Extract Segment")
-        btn_extract.clicked.connect(self._on_extract_segment)
-        actions_layout.addWidget(btn_extract)
+        self.btn_extract = QPushButton("Extract Inside")
+        self.btn_extract.clicked.connect(self._on_extract_segment)
+        actions_layout.addWidget(self.btn_extract)
 
-        btn_crop = QPushButton("Crop (extract outside selection)")
-        btn_crop.clicked.connect(self._on_crop)
-        actions_layout.addWidget(btn_crop)
+        self.btn_crop = QPushButton("Extract Outside")
+        self.btn_crop.clicked.connect(self._on_crop)
+        actions_layout.addWidget(self.btn_crop)
 
         layout.addWidget(actions_group)
         layout.addStretch()
@@ -109,6 +113,13 @@ class SelectionDock(QDockWidget):
 
         document.selection_changed.connect(self._refresh_selection_count)
         document.reset.connect(self._refresh_selection_count)
+
+    def set_icon_color(self, color: str) -> None:
+        self.btn_select_all.setIcon(load_icon("select_all", color))
+        self.btn_invert.setIcon(load_icon("invert", color))
+        self.btn_clear.setIcon(load_icon("clear", color))
+        self.btn_extract.setIcon(load_icon("extract_inside", color))
+        self.btn_crop.setIcon(load_icon("extract_outside", color))
 
     # ------------------------------------------------------------------ mode
     def _on_mode_changed(self, index: int) -> None:

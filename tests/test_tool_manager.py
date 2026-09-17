@@ -166,6 +166,28 @@ def test_escape_two_tier(qtbot):
     assert manager.active_id is None  # second Escape (now idle): back to Navigate
 
 
+def test_activate_grabs_keyboard_focus_so_escape_works_without_a_prior_click(qtbot):
+    """Regression: Escape used to do nothing until the user first clicked
+    inside the 3D view, because key events only reach ToolManager's
+    eventFilter while the interactor widget itself has focus. Asserting the
+    real OS-level hasFocus() is unreliable in a batch test run (depends on
+    window-manager activation state left over from earlier tests), so this
+    spies on setFocus() being called instead."""
+    widget = QWidget()
+    qtbot.addWidget(widget)
+    focus_calls = []
+    widget.setFocus = lambda *a, **k: focus_calls.append(1)
+
+    tool_a = RecordingTool("a")
+    manager = make_manager(widget, [tool_a])
+
+    manager.activate("a")
+    assert len(focus_calls) == 1
+
+    manager.activate(None)  # back to Navigate
+    assert len(focus_calls) == 2
+
+
 def test_document_reset_returns_to_navigate(qtbot):
     widget = QWidget()
     qtbot.addWidget(widget)

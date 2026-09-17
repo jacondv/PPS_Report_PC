@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from pps.app.settings import AppSettings, THEME_DARK, THEME_LIGHT
+from pps.ui.widgets.spin_utils import select_all_on_focus
 
 _SWATCH_SIZE = 28
 
@@ -73,7 +74,8 @@ class SettingsDialog(QDialog):
         self.point_size_spin = QSpinBox()
         self.point_size_spin.setRange(1, 10)
         self.point_size_spin.setValue(settings.point_size)
-        appearance_form.addRow("Default point size:", self.point_size_spin)
+        select_all_on_focus(self.point_size_spin)
+        appearance_form.addRow("Point size:", self.point_size_spin)
 
         layout.addWidget(appearance_group)
 
@@ -91,6 +93,17 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(colors_group)
 
+        view3d_group = QGroupBox("3D View")
+        view3d_form = QFormLayout(view3d_group)
+        view3d_form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        # Independent of Theme: this is what gets baked into the PDF
+        # report's viewport screenshot, so it needs its own explicit control.
+        self.swatch_background = _ColorSwatchButton(settings.background_color)
+        view3d_form.addRow("Background:", self.swatch_background)
+
+        layout.addWidget(view3d_group)
+
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -105,5 +118,6 @@ class SettingsDialog(QDialog):
             color_below=self.swatch_below.hex_color,
             color_within=self.swatch_within.hex_color,
             color_above=self.swatch_above.hex_color,
+            background_color=self.swatch_background.hex_color,
         )
         self.accept()

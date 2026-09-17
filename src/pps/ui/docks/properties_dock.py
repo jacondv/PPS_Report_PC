@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from pps.ui.widgets.elided_label import ElidedLabel
+from pps.ui.widgets.spin_utils import select_all_on_focus
 
 
 class PropertiesDock(QDockWidget):
@@ -55,9 +56,11 @@ class PropertiesDock(QDockWidget):
         self.spin_target_min = QDoubleSpinBox()
         self.spin_target_min.setRange(0, 9999)
         self.spin_target_min.setSuffix(" mm")
+        select_all_on_focus(self.spin_target_min)
         self.spin_target_max = QDoubleSpinBox()
         self.spin_target_max.setRange(0, 9999)
         self.spin_target_max.setSuffix(" mm")
+        select_all_on_focus(self.spin_target_max)
         settings_form.addRow("Min target thickness:", self.spin_target_min)
         settings_form.addRow("Max target thickness:", self.spin_target_max)
         self.spin_target_min.valueChanged.connect(self._on_targets_changed)
@@ -69,6 +72,7 @@ class PropertiesDock(QDockWidget):
         self.spin_point_size = QSpinBox()
         self.spin_point_size.setRange(1, 10)
         self.spin_point_size.setValue(2)
+        select_all_on_focus(self.spin_point_size)
         self.spin_point_size.valueChanged.connect(self._on_point_size_spin_changed)
         viz_form.addRow("Point size:", self.spin_point_size)
         layout.addWidget(viz_group)

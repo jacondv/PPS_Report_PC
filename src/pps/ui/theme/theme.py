@@ -38,8 +38,12 @@ LIGHT_TOKENS = {
 TOKENS = DARK_TOKENS
 
 
+def get_tokens(mode: str) -> dict:
+    return LIGHT_TOKENS if mode == "light" else DARK_TOKENS
+
+
 def apply_theme(app: QApplication, mode: str = "dark") -> None:
-    tokens = LIGHT_TOKENS if mode == "light" else DARK_TOKENS
+    tokens = get_tokens(mode)
     app.setStyle("Fusion")
     app.setPalette(_build_palette(tokens))
     app.setStyleSheet(_build_qss(tokens))

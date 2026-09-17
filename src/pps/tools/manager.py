@@ -96,6 +96,13 @@ class ToolManager(QObject):
         else:
             self._ctx_factory().set_status("")
 
+        # Keyboard events (Escape in particular) only reach this manager's
+        # eventFilter while the interactor widget itself has focus. Without
+        # this, Escape does nothing until the user first clicks inside the
+        # 3D view — grab focus proactively whenever a tool (or Navigate)
+        # becomes active so Escape/keys work right away.
+        self._interactor_widget.setFocus()
+
         self.tool_changed.emit(tool_id or "")
 
     def cancel_active(self) -> None:

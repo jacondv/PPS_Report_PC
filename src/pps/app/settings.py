@@ -17,6 +17,10 @@ DEFAULT_COLOR_BELOW = "#ff0000"   # thickness < target_min
 DEFAULT_COLOR_WITHIN = "#00ff00"  # target_min <= thickness <= target_max
 DEFAULT_COLOR_ABOVE = "#0000ff"   # thickness > target_max
 DEFAULT_POINT_SIZE = 2
+# Independent of the UI theme (Light/Dark): this color is what actually
+# ends up in the PDF report's viewport screenshot, so it must stay
+# under its own explicit control rather than following the UI chrome.
+DEFAULT_BACKGROUND_COLOR = "#1b1f27"
 
 _SETTINGS_GROUP = "display"
 
@@ -78,6 +82,14 @@ class AppSettings(QObject):
     @point_size.setter
     def point_size(self, value: int) -> None:
         self._set("point_size", int(value))
+
+    @property
+    def background_color(self) -> str:
+        return str(self._get("background_color", DEFAULT_BACKGROUND_COLOR, str))
+
+    @background_color.setter
+    def background_color(self, value: str) -> None:
+        self._set("background_color", value)
 
     def apply_updates(self, **values) -> None:
         """Write several settings at once, emitting `changed` only once —

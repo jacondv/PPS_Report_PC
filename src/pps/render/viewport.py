@@ -40,6 +40,13 @@ class Viewport(QWidget):
 
         self.overlay = Overlay(self.overlay_renderer)
 
+    def set_background(self, hex_color: str) -> None:
+        """Independent of the UI theme: this color ends up baked into the
+        PDF report's viewport screenshot, so it's controlled separately
+        (Settings > 3D View), not swapped along with Light/Dark."""
+        self.plotter.set_background(hex_color)
+        self.render()
+
     def render(self) -> None:
         self.plotter.ren_win.Render()
 
