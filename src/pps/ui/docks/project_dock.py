@@ -42,11 +42,25 @@ class ProjectDock(QDockWidget):
         self.setWidget(content)
 
         document.reset.connect(self.refresh)
-        document.layer_added.connect(lambda _id: self.refresh())
+        document.layer_added.connect(self._on_layer_added)
         document.layer_removed.connect(lambda _id: self.refresh())
         document.layer_changed.connect(lambda _id: self.refresh())
 
+    def _on_layer_added(self, layer_id: str) -> None:
+        self.refresh()
+        self.select_layer(layer_id)
+
+    def select_layer(self, layer_id: str) -> None:
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            if item.data(Qt.ItemDataRole.UserRole) == layer_id:
+                self.list_widget.setCurrentItem(item)
+                return
+
     def refresh(self) -> None:
+        current_item = self.list_widget.currentItem()
+        current_id = current_item.data(Qt.ItemDataRole.UserRole) if current_item else None
+
         self.list_widget.blockSignals(True)
         self.list_widget.clear()
         for layer in self.document.layer_manager.layers:
@@ -62,6 +76,9 @@ class ProjectDock(QDockWidget):
                 item.setFont(font)
             self.list_widget.addItem(item)
         self.list_widget.blockSignals(False)
+
+        if current_id is not None:
+            self.select_layer(current_id)
 
     def _display_text(self, layer) -> str:
         note_count = len(layer.annotations)

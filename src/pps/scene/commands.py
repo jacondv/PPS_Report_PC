@@ -21,6 +21,10 @@ class AddSegmentCommand(QUndoCommand):
         self._name = name
         self._layer = None  # built once, on first redo
 
+    @property
+    def layer(self):
+        return self._layer
+
     def redo(self):
         if self._layer is None:
             self._layer = self.document.layer_manager.build_segment(

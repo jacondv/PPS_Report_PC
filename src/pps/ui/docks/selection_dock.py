@@ -145,25 +145,36 @@ class SelectionDock(QDockWidget):
             return
         sources = selection.to_sources()
         points, distances = selection.get_points_and_distances()
-        self.document.undo_stack.push(AddSegmentCommand(self.document, points, distances, sources))
+        cmd = AddSegmentCommand(self.document, points, distances, sources)
+        self.document.undo_stack.push(cmd)
         selection.clear()
         self.document.selection_changed.emit()
+        self._show_only(cmd.layer.id)
 
     def _on_crop(self) -> None:
         selection = self.document.selection
         selection.invert()
+        cmd = None
         try:
             if selection.is_empty():
                 return
             sources = selection.to_sources()
             points, distances = selection.get_points_and_distances()
-            self.document.undo_stack.push(
-                AddSegmentCommand(self.document, points, distances, sources)
-            )
+            cmd = AddSegmentCommand(self.document, points, distances, sources)
+            self.document.undo_stack.push(cmd)
         finally:
             selection.invert()  # restore the selection as the user had it
         selection.clear()
         self.document.selection_changed.emit()
+        if cmd is not None:
+            self._show_only(cmd.layer.id)
+
+    def _show_only(self, layer_id: str) -> None:
+        """After extracting a new segment, show only that segment and hide
+        every other layer, so the result of the extraction is immediately
+        visible without being buried under the layers it came from."""
+        for layer in self.document.layer_manager.layers:
+            self.document.set_layer_visible(layer.id, layer.id == layer_id)
 
     # ------------------------------------------------------------------ display
     def _refresh_selection_count(self) -> None:

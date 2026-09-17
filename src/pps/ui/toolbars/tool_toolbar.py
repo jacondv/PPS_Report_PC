@@ -35,9 +35,19 @@ class ToolToolbar(QToolBar):
 
         tool_manager.tool_changed.connect(self._on_tool_changed)
 
+        self.set_cloud_loaded(False)
+
     def _on_tool_changed(self, tool_id: str) -> None:
         action = self._actions.get(tool_id or "")
         if action is not None:
             action.blockSignals(True)
             action.setChecked(True)
             action.blockSignals(False)
+
+    def set_cloud_loaded(self, loaded: bool) -> None:
+        """Tools can only be active while a point cloud is loaded; without
+        one, force back to (disabled) Navigate."""
+        for action in self._actions.values():
+            action.setEnabled(loaded)
+        if not loaded:
+            self.tool_manager.activate(None)

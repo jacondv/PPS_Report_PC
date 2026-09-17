@@ -8,6 +8,7 @@ import json
 import os
 
 import pytest
+from PySide6.QtCore import Qt
 
 from pps.ui.main_window import MainWindow
 
@@ -38,6 +39,36 @@ def test_open_sample_file_populates_document(main_window, sample_ply_path):
     assert main_window.document.project_info.job_number == "sample"
     # LayerRenderer actually built an actor for the original layer
     assert main_window.layer_renderer.get(main_window.document.layer_manager.original.id) is not None
+
+
+def test_tools_disabled_until_cloud_loaded(main_window, sample_ply_path):
+    for action in main_window.tool_toolbar._actions.values():
+        assert action.isEnabled() is False
+
+    main_window._load_file(sample_ply_path)
+
+    for action in main_window.tool_toolbar._actions.values():
+        assert action.isEnabled() is True
+
+
+def test_extract_segment_hides_other_layers_and_selects_new_one(main_window, sample_ply_path):
+    main_window._load_file(sample_ply_path)
+    original = main_window.document.layer_manager.original
+
+    dock = main_window.selection_dock
+    dock.spin_from.setValue(75)
+    dock.spin_to.setValue(125)
+    dock._on_filter_clicked()
+    dock._on_extract_segment()
+
+    layers = main_window.document.layer_manager.layers
+    segment = next(l for l in layers if l.id != original.id)
+
+    assert original.visible is False
+    assert segment.visible is True
+
+    current_item = main_window.project_dock.list_widget.currentItem()
+    assert current_item.data(Qt.ItemDataRole.UserRole) == segment.id
 
 
 def test_full_flow_matches_golden_baseline(main_window, sample_ply_path, tmp_path, qtbot):

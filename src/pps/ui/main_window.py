@@ -174,7 +174,8 @@ class MainWindow(QMainWindow):
         self.action_export_pdf.triggered.connect(self._on_export_pdf)
         main_toolbar.addAction(self.action_export_pdf)
 
-        self.addToolBar(ToolToolbar(self.tool_manager, self))
+        self.tool_toolbar = ToolToolbar(self.tool_manager, self)
+        self.addToolBar(self.tool_toolbar)
         self.addToolBar(ViewToolbar(self.viewport, self))
 
         self.action_select_all = QAction("Select All", self)
@@ -273,6 +274,7 @@ class MainWindow(QMainWindow):
         else:
             camera.reset_view(self.viewport.plotter)
         self.tool_manager.on_document_reset()
+        self.tool_toolbar.set_cloud_loaded(self.document.layer_manager.original is not None)
         self._calc_result = None
         self._thickness_dist = None
         self.results_dock.clear_result()
