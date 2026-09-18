@@ -31,12 +31,13 @@ _MODE_LABELS = {
 
 
 class SelectionDock(QDockWidget):
-    def __init__(self, document, region_select_tool, measure_area_tool, parent=None):
+    def __init__(self, document, region_select_tool, measure_area_tool, tool_manager=None, parent=None):
         super().__init__("Selection", parent)
         self.setObjectName("dock_selection")
         self.document = document
         self.region_select_tool = region_select_tool
         self.measure_area_tool = measure_area_tool
+        self.tool_manager = tool_manager
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -161,6 +162,7 @@ class SelectionDock(QDockWidget):
         selection.clear()
         self.document.selection_changed.emit()
         self._show_only(cmd.layer.id)
+        self._return_to_navigate()
 
     def _on_crop(self) -> None:
         selection = self.document.selection
@@ -179,6 +181,11 @@ class SelectionDock(QDockWidget):
         self.document.selection_changed.emit()
         if cmd is not None:
             self._show_only(cmd.layer.id)
+            self._return_to_navigate()
+
+    def _return_to_navigate(self) -> None:
+        if self.tool_manager is not None and self.tool_manager.active_id is not None:
+            self.tool_manager.activate(None)
 
     def _show_only(self, layer_id: str) -> None:
         """After extracting a new segment, show only that segment and hide

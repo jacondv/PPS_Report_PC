@@ -41,7 +41,7 @@ from pps.tools.note import NoteTool
 from pps.tools.region_select import RegionSelectTool
 from pps.ui.dialogs.about_dialog import show_about
 from pps.ui.dialogs.settings_dialog import SettingsDialog
-from pps.ui.dialogs.shortcuts_dialog import ShortcutsDialog
+from pps.ui.dialogs.user_guide import open_user_guide
 from pps.ui.widgets.inline_note_editor import open_inline_note_editor
 from pps.ui.docks.project_dock import ProjectDock
 from pps.ui.docks.properties_dock import PropertiesDock
@@ -111,15 +111,26 @@ class MainWindow(QMainWindow):
             undo_stack=self.document.undo_stack,
             set_status=self.statusBar().showMessage,
             request_render=self.viewport.render,
+            move_object_preview=self._move_object_preview,
+            set_highlighted=self._set_highlighted_object,
+            finish_command=self._finish_tool_command,
         )
+
+    def _finish_tool_command(self) -> None:
+        """A creation/measurement tool calls this once it has fully placed
+        one note/annotation/measurement, so the UI drops back to Navigate
+        automatically instead of staying armed for another one."""
+        if self.tool_manager.active_id is not None:
+            self.tool_manager.activate(None)
 
     def _register_tools(self) -> None:
         self.region_select_tool = RegionSelectTool()
         self.measure_area_tool = MeasureAreaTool(area_requester=self._request_area_calculation)
         self.note_tool = NoteTool(note_editor=self._open_note_editor)
         self.annotation_tool = AnnotationTool(note_editor=self._open_note_editor)
+        self.navigate_tool = NavigateTool(note_editor=self._open_note_editor, object_menu=self._object_context_menu)
 
-        self.tool_manager.register(NavigateTool())
+        self.tool_manager.register(self.navigate_tool)
         self.tool_manager.register(self.region_select_tool)
         self.tool_manager.register(MeasureDistanceTool())
         self.tool_manager.register(self.measure_area_tool)
@@ -128,6 +139,45 @@ class MainWindow(QMainWindow):
 
     def _open_note_editor(self, existing, screen_pos):
         return open_inline_note_editor(self.viewport.interactor_widget, screen_pos, existing)
+
+    def _move_object_preview(self, kind: str, object_id: str, offset_px=None, pos_frac=None) -> None:
+        if kind == "note":
+            self.note_renderer.move_live(object_id, offset_px=offset_px, pos_frac=pos_frac)
+        else:
+            self.measurement_renderer.move_live(object_id, offset_px=offset_px)
+
+    def _set_highlighted_object(self, kind, object_id) -> None:
+        if kind == "note":
+            self.note_renderer.set_highlighted(object_id)
+            self.measurement_renderer.set_highlighted(None)
+        elif kind in ("distance", "area"):
+            self.measurement_renderer.set_highlighted(object_id)
+            self.note_renderer.set_highlighted(None)
+        else:
+            self.note_renderer.set_highlighted(None)
+            self.measurement_renderer.set_highlighted(None)
+        if kind is not None and object_id is not None:
+            self.project_dock.select_object(kind, object_id)
+        self.viewport.render()
+
+    def _object_context_menu(self, kind: str, object_id: str):
+        """Right-click menu for a note/annotation/measurement hit by
+        NavigateTool. Returns "edit", "delete", or None."""
+        from PySide6.QtGui import QCursor
+        from PySide6.QtWidgets import QMenu
+
+        color = get_tokens(self.settings_store.theme)["text"]
+        menu = QMenu(self)
+        act_edit = menu.addAction(load_icon("edit", color), "Edit…") if kind == "note" else None
+        menu.addSeparator()
+        act_delete = menu.addAction(load_icon("delete", color), "Delete")
+
+        chosen = menu.exec(QCursor.pos())
+        if act_edit is not None and chosen is act_edit:
+            return "edit"
+        if chosen is act_delete:
+            return "delete"
+        return None
 
     def _request_area_calculation(self, points, on_done) -> None:
         worker = AreaMeasureWorker("", points, parent=self)
@@ -149,7 +199,7 @@ class MainWindow(QMainWindow):
     def _build_docks(self) -> None:
         self.project_dock = ProjectDock(self.document, self)
         self.selection_dock = SelectionDock(
-            self.document, self.region_select_tool, self.measure_area_tool, self
+            self.document, self.region_select_tool, self.measure_area_tool, self.tool_manager, self
         )
         self.properties_dock = PropertiesDock(self.document, self)
         self.results_dock = ResultsDock(self)
@@ -260,9 +310,10 @@ class MainWindow(QMainWindow):
         settings_menu.addAction(self.action_preferences)
 
         help_menu = menu_bar.addMenu("&Help")
-        action_shortcuts = QAction("Keyboard Shortcuts", self)
-        action_shortcuts.triggered.connect(self._show_shortcuts)
-        help_menu.addAction(action_shortcuts)
+        action_user_guide = QAction("User Guide", self)
+        action_user_guide.triggered.connect(lambda: open_user_guide(self))
+        help_menu.addAction(action_user_guide)
+        help_menu.addSeparator()
         action_about = QAction("About", self)
         action_about.triggered.connect(lambda: show_about(self))
         help_menu.addAction(action_about)
@@ -411,18 +462,12 @@ class MainWindow(QMainWindow):
         self.viewport.render()
 
     def _on_move_requested(self, kind: str, object_id: str) -> None:
-        """"Move" from the Project dock's context menu: switch to whichever
-        tool (Note or Annotation) owns this object and pre-select it, so the
-        very next drag in the 3D view moves it — the cursor changes to that
-        tool's own cursor as soon as it activates."""
-        note = self.document._find_note(object_id)
-        if note is None:
-            return
-        tool_id = "note" if note.is_screen_note else "annotation"
-        self.tool_manager.activate(tool_id)
-        tool = self.note_tool if tool_id == "note" else self.annotation_tool
-        tool.select(object_id)
-        self.statusBar().showMessage("Drag it in the 3D view to move it.")
+        """"Move" from the Project dock's context menu: switch to Navigate
+        (that's where dragging existing notes/annotations lives), highlight
+        this one, and tell the user to grab it in the 3D view."""
+        self.tool_manager.activate(None)  # None == Navigate
+        self.navigate_tool.select(kind, object_id)
+        self.statusBar().showMessage("Highlighted — drag it in the 3D view to move it.")
 
     def _on_dirty_changed(self, dirty: bool) -> None:
         self._update_window_title()
@@ -741,23 +786,18 @@ class MainWindow(QMainWindow):
             generator = PDFGenerator(filepath)
             out = generator.generate(ctx)
 
-            self.statusBar().showMessage(f"Completed: {out}")
-            QMessageBox.information(self, "Success", f"Report exported:\n{out}")
+            self.statusBar().showMessage(f"Report exported: {out}", 8000)
 
-            if platform.system() == "Windows":
-                os.startfile(out)
-            elif platform.system() == "Darwin":
-                subprocess.call(["open", out])
-            else:
-                subprocess.call(["xdg-open", out])
+            if self.settings_store.auto_open_pdf_after_export:
+                if platform.system() == "Windows":
+                    os.startfile(out)
+                elif platform.system() == "Darwin":
+                    subprocess.call(["open", out])
+                else:
+                    subprocess.call(["xdg-open", out])
         except Exception as exc:
             logger.exception("Failed to generate report")
             QMessageBox.critical(self, "Error", f"Failed to generate report:\n{exc}")
-
-    # ------------------------------------------------------------------ misc
-    def _show_shortcuts(self) -> None:
-        actions = self.findChildren(QAction)
-        ShortcutsDialog(actions, self).exec()
 
     # ------------------------------------------------------------------ window state
     def _restore_window_state(self) -> None:

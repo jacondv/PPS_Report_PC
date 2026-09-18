@@ -7,14 +7,15 @@ from PySide6.QtWidgets import QToolBar
 
 from pps.ui.icons import load_icon
 
-# (tool_id, label, shortcut, icon name)
+# (tool_id, label, shortcuts, icon name) — each tool also gets a "1".."6"
+# number-key shortcut (in activation order) alongside its mnemonic letter.
 _TOOLS = [
-    ("", "Navigate", "V", "navigate"),
-    ("region_select", "Select", "S", "select_region"),
-    ("measure_distance", "Distance", "D", "measure_distance"),
-    ("measure_area", "Area", "A", "measure_area"),
-    ("note", "Note", "N", "note"),
-    ("annotation", "Annotation", "G", "annotation"),
+    ("", "Navigate", ["V", "1"], "navigate"),
+    ("region_select", "Select", ["S", "2"], "select_region"),
+    ("measure_distance", "Distance", ["D", "3"], "measure_distance"),
+    ("measure_area", "Area", ["A", "4"], "measure_area"),
+    ("note", "Note", ["N", "5"], "note"),
+    ("annotation", "Annotation", ["G", "6"], "annotation"),
 ]
 
 
@@ -32,11 +33,11 @@ class ToolToolbar(QToolBar):
         self._icon_names = {}
         self._icon_color = "#dfe3ea"
 
-        for tool_id, label, shortcut, icon_name in _TOOLS:
+        for tool_id, label, shortcuts, icon_name in _TOOLS:
             action = QAction(label, self)
             action.setIcon(load_icon(icon_name, self._icon_color))
             action.setCheckable(True)
-            action.setShortcut(QKeySequence(shortcut))
+            action.setShortcuts([QKeySequence(s) for s in shortcuts])
             action.setChecked(tool_id == "")
             action.triggered.connect(lambda _checked=False, tid=tool_id: tool_manager.activate(tid or None))
             self._group.addAction(action)

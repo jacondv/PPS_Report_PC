@@ -7,7 +7,7 @@ This replaces the separate Objects dock — there is no other place these
 are listed.
 """
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDockWidget,
@@ -27,6 +27,7 @@ from pps.scene.commands import (
     RenameLayerCommand,
 )
 from pps.scene.measurements import DistanceMeasurement
+from pps.ui.icons import load_icon
 
 _ROLE_KIND = Qt.ItemDataRole.UserRole
 _ROLE_ID = Qt.ItemDataRole.UserRole + 1
@@ -93,6 +94,13 @@ class ProjectDock(QDockWidget):
 
     def select_layer(self, layer_id: str) -> None:
         item = self._find_item(_KIND_LAYER, layer_id)
+        if item is not None:
+            self.list_widget.setCurrentItem(item)
+
+    def select_object(self, kind: str, object_id: str) -> None:
+        """Sync the tree's selection to an object selected elsewhere (e.g.
+        clicked directly in the 3D view with the Navigate tool)."""
+        item = self._find_item(kind, object_id)
         if item is not None:
             self.list_widget.setCurrentItem(item)
 
@@ -214,12 +222,19 @@ class ProjectDock(QDockWidget):
         kind = item.data(0, _ROLE_KIND)
         object_id = item.data(0, _ROLE_ID)
         checked = item.checkState(0) == Qt.CheckState.Checked
+
+        # Mutating the Document here would emit a signal this dock is itself
+        # connected to (via refresh()), which clears/rebuilds the whole tree
+        # — including the very QTreeWidgetItem Qt is still in the middle of
+        # delivering this checkbox-click event for. That use-after-free
+        # crashed the app. Defer the mutation to the next event-loop tick so
+        # Qt has fully finished processing this click first.
         if kind == _KIND_LAYER:
-            self.document.set_layer_visible(object_id, checked)
+            QTimer.singleShot(0, lambda: self.document.set_layer_visible(object_id, checked))
         elif kind == _KIND_NOTE:
-            self.document.set_note_visible(object_id, checked)
+            QTimer.singleShot(0, lambda: self.document.set_note_visible(object_id, checked))
         elif kind in (_KIND_DISTANCE, _KIND_AREA):
-            self.document.set_measurement_visible(object_id, checked)
+            QTimer.singleShot(0, lambda: self.document.set_measurement_visible(object_id, checked))
 
     def _on_current_changed(self, current, _previous) -> None:
         if current is None:
@@ -249,6 +264,12 @@ class ProjectDock(QDockWidget):
         self.document.undo_stack.push(EditNoteCommand(self.document, note.id, **result))
 
     # ------------------------------------------------------------------ context menu
+    def _icon_color(self) -> str:
+        # Follows the current widget palette rather than the app's own theme
+        # setting, so icons stay legible without this dock needing a direct
+        # dependency on AppSettings.
+        return self.palette().color(self.foregroundRole()).name()
+
     def _on_context_menu(self, pos) -> None:
         item = self.list_widget.itemAt(pos)
         if item is None:
@@ -279,12 +300,13 @@ class ProjectDock(QDockWidget):
         if layer is None:
             return
 
+        color = self._icon_color()
         menu = QMenu(self)
-        act_rename = menu.addAction("Rename…")
+        act_rename = menu.addAction(load_icon("edit", color), "Rename…")
         act_delete = None
         if not layer.is_original:
             menu.addSeparator()
-            act_delete = menu.addAction("Delete layer")
+            act_delete = menu.addAction(load_icon("delete", color), "Delete layer")
 
         chosen = menu.exec(self.list_widget.mapToGlobal(pos))
         if chosen == act_rename:
@@ -301,7 +323,7 @@ class ProjectDock(QDockWidget):
             return
 
         menu = QMenu(self)
-        act_delete = menu.addAction(f"Delete {len(deletable_ids)} layers")
+        act_delete = menu.addAction(load_icon("delete", self._icon_color()), f"Delete {len(deletable_ids)} layers")
         chosen = menu.exec(self.list_widget.mapToGlobal(pos))
         if chosen == act_delete:
             self._delete_layers(deletable_ids)
@@ -325,17 +347,18 @@ class ProjectDock(QDockWidget):
         kind = item.data(0, _ROLE_KIND)
         object_id = item.data(0, _ROLE_ID)
 
+        color = self._icon_color()
         menu = QMenu(self)
-        act_edit = menu.addAction("Edit…") if kind == _KIND_NOTE else None
+        act_edit = menu.addAction(load_icon("edit", color), "Edit…") if kind == _KIND_NOTE else None
         # Dragging to reposition is currently only wired up for notes'/
         # annotations' text (Note and Annotation tools) — measurements
         # don't support it yet.
-        act_move = menu.addAction("Move") if kind == _KIND_NOTE else None
+        act_move = menu.addAction(load_icon("move", color), "Move") if kind == _KIND_NOTE else None
         menu.addSeparator()
         visible = item.checkState(0) == Qt.CheckState.Checked
-        act_toggle = menu.addAction("Hide" if visible else "Show")
+        act_toggle = menu.addAction(load_icon("eye_off" if visible else "eye", color), "Hide" if visible else "Show")
         menu.addSeparator()
-        act_delete = menu.addAction("Delete")
+        act_delete = menu.addAction(load_icon("delete", color), "Delete")
 
         chosen = menu.exec(self.list_widget.mapToGlobal(pos))
         if act_edit is not None and chosen == act_edit:
@@ -353,7 +376,7 @@ class ProjectDock(QDockWidget):
     def _show_bulk_object_menu(self, pos, items) -> None:
         pairs = [(i.data(0, _ROLE_KIND), i.data(0, _ROLE_ID)) for i in items]
         menu = QMenu(self)
-        act_delete = menu.addAction(f"Delete {len(pairs)} objects")
+        act_delete = menu.addAction(load_icon("delete", self._icon_color()), f"Delete {len(pairs)} objects")
         chosen = menu.exec(self.list_widget.mapToGlobal(pos))
         if chosen == act_delete:
             self._delete_objects(pairs)

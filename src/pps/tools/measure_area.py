@@ -77,6 +77,7 @@ class MeasureAreaTool(RegionSelectTool):
         )
         self.ctx.undo_stack.push(AddMeasurementCommand(document, measurement))
         self.ctx.set_status("Calculating area…")
+        self.ctx.finish_command()
 
         measurement_id = measurement.id
 

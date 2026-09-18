@@ -1,20 +1,21 @@
 """
 NoteTool: click anywhere in the 3D view to place plain 2D text directly on
 top of it (opens an inline editor at the click) — no cloud point needed at
-all, unlike AnnotationTool. Drag existing text to reposition it anywhere in
-the view, double-click to edit, Delete to remove the selected one.
+all, unlike AnnotationTool.
+
+Creation only: selecting, dragging (moving), editing, and deleting an
+existing note/annotation all happen with the Navigate tool active instead
+(tools/navigate.py) — while Note is active, every click just places a new
+one.
 """
 
 from typing import Callable, Optional, Tuple
 
-from pps.render.labels import compute_screen_note_bbox
 from pps.scene.annotations import NoteAnnotation
-from pps.scene.commands import AddNoteCommand, DeleteNoteCommand, EditNoteCommand, MoveNoteCommand
+from pps.scene.commands import AddNoteCommand
 from pps.tools.base import MouseButton, PointerEvent, PointerEventType, Tool
 
 NoteEditor = Callable[[Optional[NoteAnnotation], Tuple[float, float]], Optional[dict]]
-
-DRAG_THRESHOLD_PX = 3
 
 
 def _default_note_editor(existing: Optional[NoteAnnotation], screen_pos: Tuple[float, float]) -> Optional[dict]:
@@ -32,131 +33,16 @@ class NoteTool(Tool):
     def __init__(self, note_editor: NoteEditor = None):
         super().__init__()
         self.note_editor = note_editor or _default_note_editor
-        self._selected_note_id: Optional[str] = None
-        self._dragging = False
-        self._drag_start_pos: Optional[Tuple[float, float]] = None
-        self._drag_start_pos_frac: Optional[Tuple[float, float]] = None
-        self._pending_pos_frac: Optional[Tuple[float, float]] = None
-
-    def on_activate(self) -> None:
-        self._reset_drag()
-        self._selected_note_id = None
-
-    def on_deactivate(self) -> None:
-        self._reset_drag()
-        self._selected_note_id = None
-
-    def cancel(self) -> None:
-        self._reset_drag()
-        self._selected_note_id = None
-
-    def is_idle(self) -> bool:
-        return not self._dragging
 
     def status_hint(self) -> str:
-        return (
-            "Click: add note text  |  Drag: move  |  Double-click: edit  |  "
-            "Delete: remove selected  |  Esc: cancel"
-        )
+        return "Click: place note text here  |  Esc: cancel"
 
-    def select(self, note_id: Optional[str]) -> None:
-        """Pre-select a note (e.g. from the Project dock's "Move" action) so
-        the very next drag in the 3D view moves it, without requiring the
-        user to click it first."""
-        self._selected_note_id = note_id
-
-    # ------------------------------------------------------------------ events
     def handle_pointer(self, event: PointerEvent) -> bool:
         if event.kind == PointerEventType.PRESS and event.button == MouseButton.LEFT:
-            return self._on_press(event)
-
-        if event.kind == PointerEventType.DOUBLE_CLICK and event.button == MouseButton.LEFT:
-            return self._on_double_click(event)
-
-        if event.kind == PointerEventType.MOVE and self._dragging:
-            self._on_drag_move(event)
-            return True
-
-        if event.kind == PointerEventType.RELEASE and event.button == MouseButton.LEFT and self._dragging:
-            self._on_drag_release()
-            return True
-
-        return False
-
-    def handle_key(self, event) -> bool:
-        if event.key == "Delete" and self._selected_note_id is not None:
-            self.ctx.undo_stack.push(DeleteNoteCommand(self.ctx.document, self._selected_note_id))
-            self._selected_note_id = None
+            self._create_note((event.x, event.y))
             return True
         return False
 
-    # ------------------------------------------------------------------ press / double-click
-    def _on_press(self, event: PointerEvent) -> bool:
-        hit = self._hit_test(event.x, event.y)
-        if hit is not None:
-            self._selected_note_id = hit.id
-            self._dragging = True
-            self._drag_start_pos = (event.x, event.y)
-            self._drag_start_pos_frac = hit.screen_pos_frac
-            self._pending_pos_frac = hit.screen_pos_frac
-            return True
-
-        self._selected_note_id = None
-        self._create_note((event.x, event.y))
-        return True
-
-    def _on_double_click(self, event: PointerEvent) -> bool:
-        hit = self._hit_test(event.x, event.y)
-        if hit is None:
-            return False
-        self._edit_note(hit, (event.x, event.y))
-        return True
-
-    # ------------------------------------------------------------------ drag
-    def _on_drag_move(self, event: PointerEvent) -> None:
-        note = self.ctx.document._find_note(self._selected_note_id)
-        if note is None:
-            self._reset_drag()
-            return
-
-        width, height = self._viewport_size()
-        dx_frac = (event.x - self._drag_start_pos[0]) / width if width else 0.0
-        dy_frac = (event.y - self._drag_start_pos[1]) / height if height else 0.0
-        self._pending_pos_frac = (
-            self._drag_start_pos_frac[0] + dx_frac,
-            self._drag_start_pos_frac[1] + dy_frac,
-        )
-        self.ctx.overlay.set_hud_text(f"Moving note: {note.text[:40]!r}")
-        self.ctx.request_render()
-
-    def _on_drag_release(self) -> None:
-        note_id = self._selected_note_id
-        start_pos_frac = self._drag_start_pos_frac
-        pending_pos_frac = self._pending_pos_frac
-        self._dragging = False
-        self.ctx.overlay.set_hud_text("")
-
-        width, height = self._viewport_size()
-        moved = pending_pos_frac is not None and (
-            abs((pending_pos_frac[0] - start_pos_frac[0]) * width) >= DRAG_THRESHOLD_PX
-            or abs((pending_pos_frac[1] - start_pos_frac[1]) * height) >= DRAG_THRESHOLD_PX
-        )
-        if moved:
-            self.ctx.undo_stack.push(
-                MoveNoteCommand(self.ctx.document, note_id, field="screen_pos_frac", new_value=pending_pos_frac)
-            )
-        self.ctx.request_render()
-
-    def _reset_drag(self) -> None:
-        self._dragging = False
-        self._drag_start_pos = None
-        self._drag_start_pos_frac = None
-        self._pending_pos_frac = None
-        if self.ctx is not None:
-            self.ctx.overlay.set_hud_text("")
-            self.ctx.request_render()
-
-    # ------------------------------------------------------------------ create / edit
     def _create_note(self, screen_pos: Tuple[float, float]) -> None:
         result = self.note_editor(None, screen_pos)
         if result is None:
@@ -164,40 +50,23 @@ class NoteTool(Tool):
         document = self.ctx.document
         width, height = self._viewport_size()
         pos_frac = (screen_pos[0] / width if width else 0.5, screen_pos[1] / height if height else 0.5)
-        original = document.layer_manager.original
         note = NoteAnnotation(
             text=result["text"],
             screen_pos_frac=pos_frac,
             # A screen note has no 3D anchor to place it "on" a segment, so
-            # it belongs to the original layer by default — this is what
-            # lets it show up under a segment in the Project tree and hide
-            # along with that segment.
-            layer_id=original.id if original is not None else None,
+            # it attaches to whichever segment is currently active (visible),
+            # falling back to the original layer — this is what lets it show
+            # up under the right segment in the Project tree and hide along
+            # with it.
+            layer_id=document.layer_manager.active_layer_id(),
             color=result.get("color", "#ffd166"),
             font_size=result.get("font_size", 14),
         )
         self.ctx.undo_stack.push(AddNoteCommand(document, note))
+        self.ctx.finish_command()
 
-    def _edit_note(self, note: NoteAnnotation, screen_pos: Tuple[float, float]) -> None:
-        result = self.note_editor(note, screen_pos)
-        if result is None:
-            return
-        self.ctx.undo_stack.push(EditNoteCommand(self.ctx.document, note.id, **result))
-
-    # ------------------------------------------------------------------ helpers
     def _viewport_size(self) -> Tuple[int, int]:
         try:
             return tuple(self.ctx.viewport.plotter.ren_win.GetSize())
         except Exception:
             return (1, 1)
-
-    # ------------------------------------------------------------------ hit-testing
-    def _hit_test(self, x: float, y: float) -> Optional[NoteAnnotation]:
-        viewport_size = self._viewport_size()
-        for note in reversed(self.ctx.document.annotations):
-            if not note.is_screen_note:
-                continue
-            x0, y0, x1, y1 = compute_screen_note_bbox(note.screen_pos_frac, note.text, note.font_size, viewport_size)
-            if x0 <= x <= x1 and y0 <= y <= y1:
-                return note
-        return None

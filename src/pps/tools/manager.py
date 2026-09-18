@@ -61,7 +61,10 @@ class ToolManager(QObject):
         interactor_widget.installEventFilter(self)
 
     def register(self, tool: Tool) -> None:
-        self._tools[tool.id] = tool
+        # A tool with a falsy id ("" — e.g. NavigateTool) registers under the
+        # same None key activate()/None uses for "Navigate", so it's an
+        # actual Tool instance that runs instead of no tool at all.
+        self._tools[tool.id or None] = tool
 
     @property
     def active_id(self) -> Optional[str]:
@@ -74,11 +77,12 @@ class ToolManager(QObject):
     def activate(self, tool_id: Optional[str]) -> None:
         """Activate `tool_id`, or None/"" for Navigate. Activating the tool
         that is already active toggles back to Navigate."""
+        tool_id = tool_id or None
         if tool_id == self._active_id:
             tool_id = None
 
-        new_tool = self._tools.get(tool_id) if tool_id else None
-        if tool_id and new_tool is None:
+        new_tool = self._tools.get(tool_id)
+        if tool_id is not None and new_tool is None:
             return  # unknown id, ignore
 
         if self._active is not None:

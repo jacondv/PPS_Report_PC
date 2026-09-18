@@ -21,6 +21,7 @@ DEFAULT_POINT_SIZE = 2
 # ends up in the PDF report's viewport screenshot, so it must stay
 # under its own explicit control rather than following the UI chrome.
 DEFAULT_BACKGROUND_COLOR = "#1b1f27"
+DEFAULT_AUTO_OPEN_PDF = True
 
 _SETTINGS_GROUP = "display"
 
@@ -90,6 +91,14 @@ class AppSettings(QObject):
     @background_color.setter
     def background_color(self, value: str) -> None:
         self._set("background_color", value)
+
+    @property
+    def auto_open_pdf_after_export(self) -> bool:
+        return bool(self._get("auto_open_pdf_after_export", DEFAULT_AUTO_OPEN_PDF, bool))
+
+    @auto_open_pdf_after_export.setter
+    def auto_open_pdf_after_export(self, value: bool) -> None:
+        self._set("auto_open_pdf_after_export", bool(value))
 
     def apply_updates(self, **values) -> None:
         """Write several settings at once, emitting `changed` only once —

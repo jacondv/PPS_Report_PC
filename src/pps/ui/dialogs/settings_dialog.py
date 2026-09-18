@@ -9,6 +9,7 @@ the persisted *default* used the next time a layer is (re)colored).
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
+    QCheckBox,
     QColorDialog,
     QComboBox,
     QDialog,
@@ -118,6 +119,15 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(view3d_group)
 
+        export_group = QGroupBox("PDF Export")
+        export_form = QFormLayout(export_group)
+
+        self.auto_open_pdf_check = QCheckBox("Automatically open the report after exporting")
+        self.auto_open_pdf_check.setChecked(settings.auto_open_pdf_after_export)
+        export_form.addRow(self.auto_open_pdf_check)
+
+        layout.addWidget(export_group)
+
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -133,5 +143,6 @@ class SettingsDialog(QDialog):
             color_within=self.swatch_within.hex_color,
             color_above=self.swatch_above.hex_color,
             background_color=self.swatch_background.hex_color,
+            auto_open_pdf_after_export=self.auto_open_pdf_check.isChecked(),
         )
         self.accept()

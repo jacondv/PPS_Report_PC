@@ -70,6 +70,14 @@ class MeasurementRenderer:
         for mid, label in self._labels.items():
             label.set_highlighted(mid == measurement_id)
 
+    def move_live(self, measurement_id, offset_px=None) -> None:
+        """Move a measurement's label live during a drag. Not currently
+        reachable (dragging is only wired up for notes/annotations), kept
+        symmetric with NoteRenderer.move_live for when it is."""
+        label = self._labels.get(measurement_id)
+        if label is not None and offset_px is not None:
+            label.set_offset(offset_px)
+
     # ------------------------------------------------------------------ distance
     def _sync_distance(self, measurement: DistanceMeasurement, layer_visible: bool) -> None:
         visible = measurement.visible and layer_visible

@@ -99,5 +99,5 @@ class MeasureDistanceTool(Tool):
         self._first_point = None
         self.scratch.clear()
         self.ctx.overlay.set_hud_text("")
-        self.ctx.set_status(self.status_hint())
         self.ctx.request_render()
+        self.ctx.finish_command()

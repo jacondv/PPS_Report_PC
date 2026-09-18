@@ -197,17 +197,39 @@ class LayerManager:
     def nearest_layer_id(self, anchor: Tuple[float, float, float]) -> Optional[str]:
         """Id of the visible layer whose closest point is nearest to
         `anchor` — used to attach a 3D-anchored note to "its" layer for the
-        legacy report segment-notes feature."""
+        legacy report segment-notes feature.
+
+        A segment is a spatial subset of the original layer, so its points
+        are exact duplicates of some of the original layer's points — an
+        anchor placed on a segment ties at distance 0 against both. Prefer
+        the more specific segment over the original "whole cloud" layer on
+        a tie, so a note placed on a segment actually belongs to it instead
+        of always falling back to the original.
+        """
         anchor_arr = np.asarray(anchor, dtype=np.float64)
-        best_id, best_dist = None, float("inf")
+        best_id, best_dist, best_is_original = None, float("inf"), True
         for layer in self.visible_layers():
             if layer.num_points == 0:
                 continue
             min_dist = float(np.linalg.norm(layer.points - anchor_arr, axis=1).min())
-            if min_dist < best_dist:
+            if min_dist < best_dist or (min_dist == best_dist and best_is_original and not layer.is_original):
                 best_dist = min_dist
                 best_id = layer.id
+                best_is_original = layer.is_original
         return best_id
+
+    def active_layer_id(self) -> Optional[str]:
+        """Id of the segment a new object with no 3D position (a screen-space
+        Note) should attach to: the most recently added visible non-original
+        segment, since extracting/cropping a segment hides every other layer
+        (see SelectionDock._show_only) so exactly one is usually visible at a
+        time — falling back to the original layer only if no segment is
+        visible."""
+        visible_segments = [l for l in self.visible_layers() if not l.is_original]
+        if visible_segments:
+            return visible_segments[-1].id
+        original = self.original
+        return original.id if original is not None else None
 
     def combined_visible(self) -> Tuple[np.ndarray, np.ndarray]:
         """

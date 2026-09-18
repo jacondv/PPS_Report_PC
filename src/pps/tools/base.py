@@ -57,6 +57,9 @@ class ToolContext:
         undo_stack,
         set_status: Callable[[str], None],
         request_render: Callable[[], None],
+        move_object_preview: Optional[Callable[..., None]] = None,
+        set_highlighted: Optional[Callable[[Optional[str], Optional[str]], None]] = None,
+        finish_command: Optional[Callable[[], None]] = None,
     ):
         self.document = document
         self.viewport = viewport
@@ -64,6 +67,18 @@ class ToolContext:
         self.undo_stack = undo_stack
         self.set_status = set_status
         self.request_render = request_render
+        # Live-move a note/annotation/measurement's on-screen label while a
+        # drag is in progress (NavigateTool), without touching the Document
+        # (that only happens once, via a Move*Command, on release).
+        self.move_object_preview = move_object_preview or (lambda *a, **k: None)
+        # Highlight exactly one object (kind, object_id), or (None, None) to
+        # clear — also keeps the Project dock's tree selection in sync.
+        self.set_highlighted = set_highlighted or (lambda *a, **k: None)
+        # A creation/measurement tool calls this once its action is fully
+        # done (a note/annotation placed, a distance/area measured) to
+        # switch back to Navigate automatically, instead of staying armed
+        # for another one.
+        self.finish_command = finish_command or (lambda: None)
 
 
 class Tool(ABC):

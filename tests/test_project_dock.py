@@ -109,7 +109,8 @@ def test_move_context_action_emits_move_requested_for_notes(document, qtbot, mon
         def __init__(self, *a, **k):
             self.actions = []
 
-        def addAction(self, text):
+        def addAction(self, *args):
+            text = args[-1]  # accepts either addAction(text) or addAction(icon, text)
             action = object()
             self.actions.append((text, action))
             return action

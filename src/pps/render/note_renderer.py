@@ -66,6 +66,18 @@ class NoteRenderer:
         for oid, label in self._labels.items():
             label.set_highlighted(oid == note_id)
 
+    def move_live(self, note_id, offset_px=None, pos_frac=None) -> None:
+        """Move a note's already-built label in place, live, while a drag is
+        in progress — purely visual, no Document mutation (that only
+        happens once, via MoveNoteCommand, on drag release)."""
+        label = self._labels.get(note_id)
+        if label is None:
+            return
+        if pos_frac is not None and isinstance(label, ScreenLabel):
+            label.set_pos_frac(pos_frac)
+        elif offset_px is not None and isinstance(label, AnchoredLabel):
+            label.set_offset(offset_px)
+
 
 def _layer_visible(layer_manager, layer_id) -> bool:
     if layer_manager is None or layer_id is None:
