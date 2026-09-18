@@ -8,6 +8,7 @@ root (rather than only `python -m pps`) because PyInstaller's build.spec
 expects a root-level script.
 """
 
+import logging
 import os
 import sys
 
@@ -19,14 +20,35 @@ from pps.app.settings import AppSettings  # noqa: E402
 from pps.ui.theme import apply_theme  # noqa: E402
 from pps.ui.main_window import MainWindow  # noqa: E402
 
+logger = logging.getLogger(__name__)
+
+
+def _install_excepthook() -> None:
+    """Log uncaught exceptions to the file log instead of letting them only
+    flash past in a console window the user may not even have open."""
+    default_hook = sys.excepthook
+
+    def _hook(exc_type, exc_value, exc_tb):
+        logger.critical("Unhandled exception", exc_info=(exc_type, exc_value, exc_tb))
+        default_hook(exc_type, exc_value, exc_tb)
+
+    sys.excepthook = _hook
+
 
 def main() -> None:
-    configure_logging()
+    log_path = configure_logging()
+    _install_excepthook()
+    logger.info("Starting Tunnel Concrete Thickness Analyzer — log file: %s", log_path)
+
     app = create_app(sys.argv)
+    logger.info("QApplication created")
     apply_theme(app, AppSettings().theme)
+    logger.info("Theme applied; constructing MainWindow…")
 
     window = MainWindow()
+    logger.info("MainWindow constructed; showing…")
     window.showMaximized()
+    logger.info("MainWindow shown; entering event loop")
 
     sys.exit(app.exec())
 

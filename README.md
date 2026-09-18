@@ -1,18 +1,18 @@
 # Tunnel Concrete Thickness Analyzer
 
-Phần mềm phân tích độ dày bê tông phun đường hầm từ dữ liệu Point Cloud (.ply)
+Phần mềm phân tích độ dày bê tông phun đường hầm (shotcrete) từ dữ liệu quét Point Cloud (.ply) đã được so sánh với thiết kế — hiển thị 3D, chọn vùng/tách segment, đo đạc, ghi chú, tính toán thống kê và xuất báo cáo PDF.
+
+Xem hướng dẫn sử dụng đầy đủ (có hình minh họa) ngay trong ứng dụng qua `Help → User Guide`.
 
 ## Tính năng
 
-- **Tải và hiển thị 3D**: Mở file PLY với các trường scalar tùy chỉnh (distances)
-- **Visualization tương tác**: Xoay, zoom, pan với bảng màu tùy chỉnh
-- **Công cụ chọn vùng (Segment)**: Chọn vùng bằng cách kéo chuột hoặc theo khoảng độ dày
-- **Tính toán tự động**:
-  - Diện tích bề mặt (m²)
-  - Thể tích bê tông (m³, lít)
-  - Độ dày trung bình, min, max, độ lệch chuẩn
-  - Phân bố độ dày theo tiêu chuẩn
-- **Xuất báo cáo PDF**: Báo cáo đầy đủ với thông tin dự án và biểu đồ histogram
+- **Hiển thị 3D tương tác**: tải Point Cloud (.ply), tô màu theo chiều dày, xoay/zoom/pan, các góc nhìn chuẩn (Top/Front/Iso...)
+- **Chọn vùng & tách Segment**: Polygon/Rectangle/Lasso, lọc theo khoảng chiều dày, Extract Inside/Outside
+- **Đo đạc**: khoảng cách giữa 2 điểm, diện tích bề mặt thực (Ball-Pivoting)
+- **Note & Annotation**: ghi chú 2D cố định trên màn hình, hoặc neo vào điểm trên cloud — chọn/di chuyển/sửa/xóa trực tiếp trong khung nhìn 3D
+- **Project file (.ppsproj)**: lưu/mở lại toàn bộ phiên làm việc (segment, ghi chú, đo đạc, target range, camera)
+- **Tính toán thống kê**: diện tích bề mặt, thể tích, chiều dày trung bình/min/max/độ lệch chuẩn, phân bố theo Target Min/Max
+- **Xuất báo cáo PDF**: kèm ảnh chụp 3D, bảng số liệu, thông tin dự án — tùy chọn tự động mở file sau khi xuất
 
 ## Cài đặt
 
@@ -22,13 +22,12 @@ Phần mềm phân tích độ dày bê tông phun đường hầm từ dữ li�
 
 ### Cài đặt thư viện
 
-
 ```bash
 cd PPS_Report_PC
 pip install -r requirements.txt
 ```
 
-Hoặc sử dụng uv (khuyến nghị):
+Hoặc dùng `uv` (khuyến nghị):
 
 ```bash
 uv pip install -r requirements.txt
@@ -44,75 +43,76 @@ python main.py
 
 ### Quy trình làm việc
 
-1. **Mở file PLY**: File > Mở file PLY... hoặc Ctrl+O
-2. **Chọn trường độ dày**: Chọn trường scalar chứa dữ liệu độ dày (distances)
-3. **Cài đặt ngưỡng**: Nhập độ dày tối thiểu và tối đa mong muốn
-4. **Chọn vùng (tùy chọn)**: 
-   - Bật "Chế độ chọn" và kéo chuột để chọn vùng
-   - Hoặc chọn theo khoảng độ dày
-5. **Tính toán**: Nhấn nút "Tính toán"
-6. **Xuất báo cáo**: Nhấn "Xuất báo cáo PDF"
+1. **Mở file PLY**: `File → Open PLY…` (`Ctrl+O`)
+2. **Chỉnh Target Min/Max** (mm) ở khung Properties — mặc định lấy từ `job_info.json` cạnh file PLY nếu có, hoặc 40–60mm
+3. **Chọn vùng / tách Segment** (tùy chọn): dùng công cụ Select, sau đó Extract Inside/Outside
+4. **Đo đạc / Ghi chú** (tùy chọn): công cụ Distance, Area, Note, Annotation
+5. **Tính toán**: nút **Calculate** trên toolbar
+6. **Xuất báo cáo**: nút **Export PDF…** (`Ctrl+E`)
+
+Chi tiết từng bước, kèm ảnh minh họa, xem trong `Help → User Guide` khi chạy ứng dụng.
 
 ### Định dạng tên file
 
-Phần mềm tự động phân tích thông tin từ tên file PLY theo format:
+Nếu file nằm theo cấu trúc thư mục:
 
 ```
-projectname#jobnumber#hhmmss#name.ply
+.../Projects/<ProjectName>/<JobNumber>/<JobNumber>#<yyyyMMdd_hhmmss>#<SegmentName>.ply
 ```
 
-Ví dụ: `TunnelA#JOB001#143025#Section1.ply`
+phần mềm tự động đọc project name, job number, thời gian scan và tên segment để hiển thị và đặt tên file PDF mặc định. Nếu không theo đúng cấu trúc này, file vẫn tải bình thường (chỉ là các trường project/job sẽ lấy theo tên thư mục/file thô).
 
-- `projectname`: Tên dự án (TunnelA)
-- `jobnumber`: Mã công việc (JOB001)  
-- `hhmmss`: Thời gian scan (14:30:25)
-- `name`: Tên segment (Section1)
-
-### Phím tắt
+### Phím tắt chính
 
 | Phím | Chức năng |
-|------|-----------|
-| Ctrl+O | Mở file |
-| Ctrl+E | Xuất PDF |
-| Ctrl+Q | Thoát |
-| R | Reset view |
-| T | Top view |
-| F | Front view |
-| S | Side view |
+|---|---|
+| `1`–`6` hoặc `V S D A N G` | Navigate / Select / Distance / Area / Note / Annotation |
+| `Esc` | Hủy thao tác dở dang; bấm lần nữa để về Navigate |
+| `Delete` | Xóa đối tượng đang chọn (khi ở Navigate) |
+| `Ctrl+Z` / `Ctrl+Y` | Undo / Redo |
+| `Ctrl+O` / `Ctrl+S` / `Ctrl+Shift+S` / `Ctrl+Shift+O` | Open PLY / Save Project / Save Project As / Open Project |
+| `Ctrl+E` | Export PDF |
+| `Ctrl+A` | Select All |
+
+Danh sách đầy đủ xem trong User Guide (`Help → User Guide`).
 
 ## Cấu trúc project
 
 ```
 PPS_Report_PC/
-├── main.py              # Entry point
-├── requirements.txt     # Dependencies
-├── README.md           # Documentation
-├── core/               # Core logic
-│   ├── ply_loader.py   # PLY file loading
-│   ├── filename_parser.py # Filename parsing
-│   ├── calculator.py   # Area/volume calculation
-│   └── segmentation.py # Point selection
-├── gui/                # GUI components
-│   ├── main_window.py  # Main window
-│   └── viewer_3d.py    # 3D viewer
-└── report/             # Report generation
-    └── pdf_generator.py # PDF reports
+├── main.py                # Entry point (thin — wiring thật nằm trong src/pps)
+├── build.spec             # PyInstaller spec (PySide6 + layout src/)
+├── requirements.txt
+├── src/pps/
+│   ├── app/                # Bootstrap: QApplication, settings, logging
+│   ├── core/                # Model + logic thuần: PLY loader, calculator, layers, filename/job-info parsing
+│   ├── scene/                # Document (state trung tâm), commands (undo/redo), project file I/O
+│   ├── render/                # VTK actors: layer/note/measurement renderer, labels, color legend, picking
+│   ├── tools/                # Tool framework: Navigate, Select, Distance, Area, Note, Annotation
+│   ├── ui/                # MainWindow, docks, toolbars, dialogs (Qt only, không chứa business logic)
+│   ├── report/                # PDF report generator (ReportLab + Jinja2/wkhtmltopdf)
+│   └── utils/                # Helper chung (resource path, timing…)
+├── tests/                  # pytest + pytest-qt
+├── sample/                 # File PLY mẫu để test/demo
+└── docs/REFACTOR_PLAN.md  # Kế hoạch & lịch sử refactor
 ```
 
 ## Lưu ý
 
-- File PLY cần có trường scalar chứa độ dày (mặc định: "distances")
-- Đơn vị độ dày trong file PLY phải là mm
-- Đơn vị tọa độ (x, y, z) trong file PLY phải là mét
+- File PLY cần có trường scalar chứa độ dày (mặc định: `distances`), đơn vị mm; tọa độ (x, y, z) đơn vị mét.
+- Log ứng dụng (kể cả lỗi chưa xử lý) được ghi vào file dưới thư mục người dùng — Windows: `%LOCALAPPDATA%\TunnelAnalyzer\logs\app.log`.
+- **Lần đầu chạy file `.exe` đã đóng gói**, Windows Defender có thể quét khá lâu (file chưa ký số, bộ DLL VTK/Open3D/Qt lớn) khiến app có vẻ "treo" vài chục giây tới cả phút ở lần khởi động đầu tiên — đây là hành vi của Defender, không phải lỗi app; các lần chạy sau sẽ nhanh bình thường. Nếu cần, thêm exclusion cho thư mục cài đặt vào Windows Defender.
 
 ## License
 
 MIT License
 
+## Build (đóng gói .exe)
 
-## Build 
 ```bash
 pip install pyinstaller
 Remove-Item -Recurse -Force build, dist
 pyinstaller build.spec
 ```
+
+Kết quả nằm trong `dist/Jacon PPS Report Generator/`.

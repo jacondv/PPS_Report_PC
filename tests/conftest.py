@@ -1,7 +1,7 @@
 import os
 
-# Both PyQt5 and PySide6 are installed (PyQt5 kept for the old UI branch).
-# Force pytest-qt and qtpy/pyvistaqt to use PySide6 before any Qt import.
+# Force pytest-qt and qtpy/pyvistaqt to use PySide6 before any Qt import,
+# in case another Qt binding is also present in the environment.
 os.environ.setdefault("QT_API", "pyside6")
 os.environ.setdefault("PYTEST_QT_API", "pyside6")
 

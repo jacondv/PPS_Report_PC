@@ -80,6 +80,7 @@ temp/
 node_modules/
 dist/
 build/
+installer_output/
 
 # ======================
 # Local machine state (không commit)

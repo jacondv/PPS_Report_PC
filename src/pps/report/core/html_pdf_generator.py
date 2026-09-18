@@ -55,7 +55,7 @@ class HTMLPDFGenerator:
 
     def _render_template(self, ctx):
         env = Environment(
-            loader=FileSystemLoader(Path(__file__).resolve().parents[1] / 'templates'),
+            loader=FileSystemLoader(resource_path(os.path.join('report', 'templates'))),
             autoescape=select_autoescape(['html', 'xml'])
         )
         template = env.get_template(self.TEMPLATE_NAME)

@@ -43,6 +43,7 @@ from pps.ui.dialogs.about_dialog import show_about
 from pps.ui.dialogs.settings_dialog import SettingsDialog
 from pps.ui.dialogs.user_guide import open_user_guide
 from pps.ui.widgets.inline_note_editor import open_inline_note_editor
+from pps.ui.widgets.spinner import Spinner
 from pps.ui.docks.project_dock import ProjectDock
 from pps.ui.docks.properties_dock import PropertiesDock
 from pps.ui.docks.results_dock import ResultsDock
@@ -77,7 +78,9 @@ class MainWindow(QMainWindow):
         self._area_workers = []  # keep QThreads alive while running
         self.current_project_path = None
 
+        logger.debug("MainWindow: creating Viewport (VTK/OpenGL render window)…")
         self.viewport = Viewport(self)
+        logger.debug("MainWindow: Viewport created")
         self.setCentralWidget(self.viewport)
         self.viewport.set_background(self.settings_store.background_color)
 
@@ -91,8 +94,10 @@ class MainWindow(QMainWindow):
         self.tool_manager = ToolManager(self._build_tool_context, self.viewport.interactor_widget, self)
         self._register_tools()
 
+        logger.debug("MainWindow: building docks…")
         self._build_docks()
         self.properties_dock.set_point_size_silently(self._point_size)
+        logger.debug("MainWindow: building toolbars/menus…")
         self._build_toolbars()
         self._build_menus()
         self._apply_icon_colors()
@@ -101,6 +106,7 @@ class MainWindow(QMainWindow):
         self.settings_store.changed.connect(self._on_display_settings_changed)
 
         self._restore_window_state()
+        logger.debug("MainWindow: __init__ complete")
 
     # ------------------------------------------------------------------ tools
     def _build_tool_context(self) -> ToolContext:
@@ -238,6 +244,9 @@ class MainWindow(QMainWindow):
         self.action_calculate = QAction("Calculate", self)
         self.action_calculate.triggered.connect(self._on_calculate)
         main_toolbar.addAction(self.action_calculate)
+
+        self.calc_spinner = Spinner(main_toolbar)
+        main_toolbar.addWidget(self.calc_spinner)
 
         self.action_export_pdf = QAction("Export PDF…", self)
         self.action_export_pdf.setShortcut(QKeySequence("Ctrl+E"))
@@ -709,29 +718,39 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Warning", "Please check one or more layers!")
             return
 
-        self.results_dock.progress_bar.setVisible(True)
-        self.results_dock.progress_bar.setValue(0)
+        # The worker only ever reports 10% then 100% (run_analysis isn't
+        # instrumented for finer-grained progress), so a determinate bar
+        # just looks stuck for however long the real work takes — use the
+        # indeterminate/"busy" mode instead, plus a spinner and wait cursor,
+        # so a slow calculation on a large cloud still reads as "working".
+        self.results_dock.set_busy(True)
+        self.calc_spinner.start()
         self.action_calculate.setEnabled(False)
+        self.statusBar().showMessage("Calculating… this may take a while for large point clouds")
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
         self._calc_worker = CalculationWorker(
             points, distances, self.document.target_min, self.document.target_max, parent=self
         )
-        self._calc_worker.progress.connect(self.results_dock.progress_bar.setValue)
         self._calc_worker.finished_ok.connect(self._on_calc_done)
         self._calc_worker.failed.connect(self._on_calc_failed)
         self._calc_worker.start()
+
+    def _end_calc_busy_state(self) -> None:
+        self.results_dock.set_busy(False)
+        self.calc_spinner.stop()
+        self.action_calculate.setEnabled(True)
+        QApplication.restoreOverrideCursor()
 
     def _on_calc_done(self, calc, dist) -> None:
         self._calc_result = calc
         self._thickness_dist = dist
         self.results_dock.show_result(calc, dist)
-        self.results_dock.progress_bar.setVisible(False)
-        self.action_calculate.setEnabled(True)
+        self._end_calc_busy_state()
         self.statusBar().showMessage("Completed calculation")
 
     def _on_calc_failed(self, message: str) -> None:
-        self.results_dock.progress_bar.setVisible(False)
-        self.action_calculate.setEnabled(True)
+        self._end_calc_busy_state()
         # Known sharp edge (plan §7.1.6): if no point reaches the target
         # thickness, the core calculation raises rather than silently
         # returning zero. We surface it clearly here instead of "fixing"

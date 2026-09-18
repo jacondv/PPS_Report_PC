@@ -67,6 +67,17 @@ class ResultsDock(QDockWidget):
         scroll.setWidget(content)
         self.setWidget(scroll)
 
+    def set_busy(self, busy: bool) -> None:
+        """Indeterminate ("marquee") mode while calculating — the worker
+        only ever reports two progress steps, so a determinate 0-100 bar
+        just looks stuck for however long the real work takes."""
+        if busy:
+            self.progress_bar.setRange(0, 0)
+            self.progress_bar.setVisible(True)
+        else:
+            self.progress_bar.setVisible(False)
+            self.progress_bar.setRange(0, 100)
+
     def show_result(self, calc, dist) -> None:
         self.lbl_area.setText(f"{calc.surface_area_m2:.1f}")
         self.lbl_target_coverage.setText(f"{calc.area_reached_target_m2:.1f}")

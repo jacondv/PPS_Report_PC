@@ -3,10 +3,6 @@
 
 # GUI
 PySide6>=6.6.0
-# PyQt5 kept installed locally for switching back to the old UI branch;
-# not required by the new (src/pps) code — do not import it there.
-PyQt5>=5.15.0
-PyQt5-sip>=12.0.0
 
 # 3D Visualization
 pyvista>=0.43.0

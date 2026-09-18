@@ -12,7 +12,7 @@ from PySide6.QtCore import QObject, QSettings, Signal
 THEME_DARK = "dark"
 THEME_LIGHT = "light"
 
-DEFAULT_THEME = THEME_DARK
+DEFAULT_THEME = THEME_LIGHT
 DEFAULT_COLOR_BELOW = "#ff0000"   # thickness < target_min
 DEFAULT_COLOR_WITHIN = "#00ff00"  # target_min <= thickness <= target_max
 DEFAULT_COLOR_ABOVE = "#0000ff"   # thickness > target_max
