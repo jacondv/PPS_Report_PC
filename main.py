@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Tunnel Concrete Thickness Analyzer — entry point.
+Jacon PPS Report — entry point.
 
 Thin on purpose: real app wiring lives in pps.app / pps.ui so it can be
 imported and tested without going through this script. Kept at the repo
@@ -38,7 +38,7 @@ def _install_excepthook() -> None:
 def main() -> None:
     log_path = configure_logging()
     _install_excepthook()
-    logger.info("Starting Tunnel Concrete Thickness Analyzer — log file: %s", log_path)
+    logger.info("Starting Jacon PPS Report — log file: %s", log_path)
 
     app = create_app(sys.argv)
     logger.info("QApplication created")

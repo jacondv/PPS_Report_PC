@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pps"
 version = "2.0.0"
-description = "Tunnel Concrete Thickness Analyzer"
+description = "Jacon PPS Report"
 requires-python = ">=3.9"
 
 [tool.setuptools.packages.find]

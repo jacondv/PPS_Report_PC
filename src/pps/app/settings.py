@@ -22,6 +22,8 @@ DEFAULT_POINT_SIZE = 2
 # under its own explicit control rather than following the UI chrome.
 DEFAULT_BACKGROUND_COLOR = "#1b1f27"
 DEFAULT_AUTO_OPEN_PDF = True
+DEFAULT_REPORT_TITLE = "SHOTCRETE THICKNESS REPORT"
+DEFAULT_REPORT_LOGO_PATH = ""  # empty = use the bundled Jacon logo
 
 _SETTINGS_GROUP = "display"
 
@@ -99,6 +101,22 @@ class AppSettings(QObject):
     @auto_open_pdf_after_export.setter
     def auto_open_pdf_after_export(self, value: bool) -> None:
         self._set("auto_open_pdf_after_export", bool(value))
+
+    @property
+    def report_title(self) -> str:
+        return str(self._get("report_title", DEFAULT_REPORT_TITLE, str))
+
+    @report_title.setter
+    def report_title(self, value: str) -> None:
+        self._set("report_title", value)
+
+    @property
+    def report_logo_path(self) -> str:
+        return str(self._get("report_logo_path", DEFAULT_REPORT_LOGO_PATH, str))
+
+    @report_logo_path.setter
+    def report_logo_path(self, value: str) -> None:
+        self._set("report_logo_path", value)
 
     def apply_updates(self, **values) -> None:
         """Write several settings at once, emitting `changed` only once —

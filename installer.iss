@@ -1,4 +1,4 @@
-; Inno Setup script for Tunnel Concrete Thickness Analyzer.
+; Inno Setup script for Jacon PPS Report.
 ;
 ; Builds a standard step-by-step Windows installer (Welcome -> install
 ; location -> shortcuts -> install -> finish) around the PyInstaller
@@ -13,9 +13,9 @@
 ;
 ; Output: installer_output\<name> Setup <version>.exe
 
-#define MyAppName "Tunnel Concrete Thickness Analyzer"
-#define MyAppExeName "Jacon PPS Report Generator.exe"
-#define MyAppSourceDir "dist\Jacon PPS Report Generator"
+#define MyAppName "Jacon PPS Report"
+#define MyAppExeName "Jacon PPS Report.exe"
+#define MyAppSourceDir "dist\Jacon PPS Report"
 #define MyAppVersion "3.0.0"
 #define MyAppPublisher "Jacon Equipment"
 

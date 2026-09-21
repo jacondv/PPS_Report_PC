@@ -64,7 +64,7 @@ RECENT_PROJECTS_MAX = 10
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Tunnel Concrete Thickness Analyzer")
+        self.setWindowTitle("Jacon PPS Report")
         self.resize(1400, 900)
 
         self.settings = QSettings("TunnelAnalyzer", "TunnelConcreteThicknessAnalyzer")
@@ -482,7 +482,7 @@ class MainWindow(QMainWindow):
         self._update_window_title()
 
     def _update_window_title(self) -> None:
-        title = "Tunnel Concrete Thickness Analyzer"
+        title = "Jacon PPS Report"
         if self.current_project_path:
             title = f"{title} — {os.path.basename(self.current_project_path)}"
         if self.document.dirty:
@@ -800,6 +800,8 @@ class MainWindow(QMainWindow):
                 "original_area_m2": None,
                 "screenshot_path": screenshot_path,
                 "visible_layers": visible_layers,
+                "report_title": self.settings_store.report_title,
+                "report_logo_path": self.settings_store.report_logo_path or None,
             }
 
             generator = PDFGenerator(filepath)

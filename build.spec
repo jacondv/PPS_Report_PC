@@ -73,7 +73,7 @@ exe = EXE(
     pyz,
     a.scripts,
     exclude_binaries=True,
-    name="Jacon PPS Report Generator",
+    name="Jacon PPS Report",
     debug=False,
     console=True,
     icon="assets/icon.ico",
@@ -84,5 +84,5 @@ coll = COLLECT(
     a.binaries,
     a.zipfiles,
     a.datas,
-    name="Jacon PPS Report Generator",
+    name="Jacon PPS Report",
 )

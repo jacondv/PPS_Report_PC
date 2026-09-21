@@ -1,4 +1,4 @@
-# Tunnel Concrete Thickness Analyzer
+# Jacon PPS Report
 
 Phần mềm phân tích độ dày bê tông phun đường hầm (shotcrete) từ dữ liệu quét Point Cloud (.ply) đã được so sánh với thiết kế — hiển thị 3D, chọn vùng/tách segment, đo đạc, ghi chú, tính toán thống kê và xuất báo cáo PDF.
 

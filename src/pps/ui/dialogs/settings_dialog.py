@@ -14,14 +14,17 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
+    QHBoxLayout,
+    QLineEdit,
     QPushButton,
     QSpinBox,
     QVBoxLayout,
 )
 
-from pps.app.settings import AppSettings, THEME_DARK, THEME_LIGHT
+from pps.app.settings import AppSettings, DEFAULT_REPORT_TITLE, THEME_DARK, THEME_LIGHT
 from pps.ui.widgets.spin_utils import select_all_on_focus
 
 _SWATCH_SIZE = 28
@@ -119,6 +122,28 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(view3d_group)
 
+        report_group = QGroupBox("Report")
+        report_form = QFormLayout(report_group)
+        report_form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        self.report_title_edit = QLineEdit(settings.report_title)
+        report_form.addRow("Report title:", self.report_title_edit)
+
+        logo_row = QHBoxLayout()
+        self.report_logo_edit = QLineEdit(settings.report_logo_path)
+        self.report_logo_edit.setPlaceholderText("(default Jacon logo)")
+        self.report_logo_edit.setReadOnly(True)
+        browse_logo_btn = QPushButton("Browse…")
+        browse_logo_btn.clicked.connect(self._browse_report_logo)
+        clear_logo_btn = QPushButton("Reset")
+        clear_logo_btn.clicked.connect(lambda: self.report_logo_edit.setText(""))
+        logo_row.addWidget(self.report_logo_edit, 1)
+        logo_row.addWidget(browse_logo_btn)
+        logo_row.addWidget(clear_logo_btn)
+        report_form.addRow("Report logo:", logo_row)
+
+        layout.addWidget(report_group)
+
         export_group = QGroupBox("PDF Export")
         export_form = QFormLayout(export_group)
 
@@ -135,6 +160,13 @@ class SettingsDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
+    def _browse_report_logo(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Choose report logo", "", "Images (*.png *.jpg *.jpeg *.svg)"
+        )
+        if path:
+            self.report_logo_edit.setText(path)
+
     def _on_accept(self) -> None:
         self.settings.apply_updates(
             theme=self.theme_combo.currentData(),
@@ -144,5 +176,7 @@ class SettingsDialog(QDialog):
             color_above=self.swatch_above.hex_color,
             background_color=self.swatch_background.hex_color,
             auto_open_pdf_after_export=self.auto_open_pdf_check.isChecked(),
+            report_title=self.report_title_edit.text().strip() or DEFAULT_REPORT_TITLE,
+            report_logo_path=self.report_logo_edit.text().strip(),
         )
         self.accept()

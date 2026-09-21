@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>User Guide - Tunnel Concrete Thickness Analyzer</title>
+<title>User Guide - Jacon PPS Report</title>
 <style>
   :root {
     --bg: #ffffff;
@@ -206,12 +206,66 @@
     padding-top: 24px;
     border-top: 1px solid var(--border);
   }
+  .warning-box {
+    border: 2px solid #1c2430;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 0 0 20px;
+  }
+  .warning-box .warning-head {
+    background: #f7941d;
+    color: #1c2430;
+    font-size: 20px;
+    font-weight: 700;
+    text-align: center;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .warning-box .warning-head .tri {
+    font-size: 22px;
+    line-height: 1;
+  }
+  .warning-box .warning-head span.text { flex: 1; }
+  .warning-box .warning-body {
+    padding: 20px 24px;
+    text-align: center;
+    background: #fff;
+  }
+  .warning-box .warning-body p { margin: 0 0 16px; font-weight: 600; }
+  .warning-box .warning-body p:last-child { margin-bottom: 0; }
+  .contact-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .contact-card .band {
+    background: #1a7f7c;
+    color: #fff;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+  .contact-card table { margin: 0; font-size: 13.5px; }
+  .contact-card table td { padding: 10px 16px; }
+  .contact-card table td.label { color: var(--text-soft); width: 46%; }
+  .contact-card .foot {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 16px;
+    font-size: 11.5px;
+    color: var(--text-soft);
+    border-top: 1px solid var(--border);
+  }
 </style>
 </head>
 <body>
 <div class="layout">
   <nav class="toc">
     <h2>Contents</h2>
+    <a href="#warning">Safety Warning</a>
     <a href="#overview">1. Overview</a>
     <a href="#interface">2. Interface Tour</a>
     <a href="#open-file">3. Opening a PLY File</a>
@@ -227,11 +281,12 @@
     <a href="#undo">13. Undo, Redo &amp; Safety</a>
     <a href="#shortcuts">14. Keyboard Shortcuts</a>
     <a href="#troubleshooting">15. Tips &amp; Troubleshooting</a>
+    <a href="#contact">Jacon Contact List</a>
   </nav>
   <main>
     <header class="hero">
       <div class="eyebrow">User Guide</div>
-      <h1>Tunnel Concrete Thickness Analyzer</h1>
+      <h1>Jacon PPS Report</h1>
       <p class="lead">
         A complete walkthrough of the application: loading scan data,
         navigating and measuring in 3D, extracting segments, annotating
@@ -240,10 +295,22 @@
       </p>
     </header>
 
+    <section id="warning">
+      <div class="warning-box">
+        <div class="warning-head"><span class="tri">&#9888;</span><span class="text">WARNING</span></div>
+        <div class="warning-body">
+          <p>To prevent serious injury and machine damage, only trained personnel should install replacement parts.</p>
+          <p>Only genuine replacement parts should be used to repair Jacon machinery.</p>
+          <p>Failure to do so could result in personal injury or equipment damage.</p>
+          <p>A copy of this parts manual should be kept in the site maintenance repair document library.</p>
+        </div>
+      </div>
+    </section>
+
     <section id="overview">
       <h2><span class="num">1</span> Overview</h2>
       <p>
-        Tunnel Concrete Thickness Analyzer reads a 3D Point Cloud scan
+        Jacon PPS Report reads a 3D Point Cloud scan
         (<code>.ply</code>) that has already been compared against the
         design profile, so every point carries a signed thickness value
         (the perpendicular distance between the as-sprayed surface and the
@@ -597,6 +664,16 @@
         PDF opens in your system's default PDF viewer immediately after
         export completes — no confirmation dialog is shown either way.
       </div>
+      <div class="callout">
+        <strong>Customizing the report title and logo:</strong> go to
+        <code>Settings &rarr; Preferences&hellip;</code>, section
+        <em>Report</em>. Change <strong>Report title</strong> to replace the
+        heading printed at the top of every exported PDF, and use
+        <strong>Report logo &rarr; Browse&hellip;</strong> to pick your own
+        image (PNG/JPG/SVG) instead of the default Jacon logo — click
+        <strong>Reset</strong> to go back to the default. Both settings are
+        saved per-user and apply to every report exported afterwards.
+      </div>
     </section>
 
     <section id="settings">
@@ -610,6 +687,8 @@
         <tr><td>Point size</td><td>Default rendered point size for newly loaded/colored layers</td></tr>
         <tr><td>Thickness Classification Colors</td><td>The three colors used for Below / Within / Above target</td></tr>
         <tr><td>3D View Background</td><td>Viewport background color — independent of Theme, since it is baked into the PDF report's screenshot</td></tr>
+        <tr><td>Report title</td><td>The heading printed at the top of the PDF report (default: "SHOTCRETE THICKNESS REPORT")</td></tr>
+        <tr><td>Report logo</td><td>Custom logo image (PNG/JPG/SVG) printed on the report; <strong>Reset</strong> reverts to the default Jacon logo</td></tr>
         <tr><td>Automatically open the report after exporting</td><td>Whether Export PDF opens the resulting file automatically (see above)</td></tr>
       </table>
       <p>These preferences are stored per-user and persist across sessions and across different point cloud files.</p>
@@ -674,8 +753,37 @@
       </p>
     </section>
 
+    <section id="contact">
+      <h2>Jacon Contact List</h2>
+      <div class="contact-card">
+        <div class="band">JACON CONTACT LIST</div>
+        <table>
+          <tr><td class="label">Equipment Sales</td><td><a href="mailto:sales@jaconequipment.com">sales@jaconequipment.com</a></td></tr>
+          <tr><td class="label">Spare Parts / Customer Service</td><td><a href="mailto:spareparts@jaconequipment.com">spareparts@jaconequipment.com</a></td></tr>
+          <tr><td class="label">Technical Support</td><td><a href="mailto:productsupport@jaconequipment.com">productsupport@jaconequipment.com</a></td></tr>
+        </table>
+        <div class="band">Jacon Australia Operations</div>
+        <table>
+          <tr><td class="label">Dubbo Facility | Head Office</td><td>20L Sheraton Road<br>PO Box 4921 Dubbo, NSW, Australia 2830<br>Tel: 13000 JACON (52266)</td></tr>
+          <tr><td class="label">Sydney Facility | Technical Support</td><td>14 Carter Street<br>Lidcombe, NSW, Australia 2141<br>Tel: 13000 JACON (52266)</td></tr>
+          <tr><td class="label">Brisbane Facility | Customer Service, Main Warehouse</td><td>1388 Kingsford Smith Drive<br>Pinkenba, Brisbane, QLD, Australia 4008<br>Tel: +61 7 3260 1331</td></tr>
+          <tr><td class="label">Perth Facility | Customer Service</td><td>9 Creative Street<br>Wangara, WA, Australia 6065<br>Tel: +61 8 9249 7667</td></tr>
+        </table>
+        <div class="band">Global Operations</div>
+        <table>
+          <tr><td class="label">Manufacture Facility</td><td>VMS Engineering<br>Lot D, Loc An Binh Son Industrial Zone<br>Long Thanh Commune Dong Nai Province<br>Vietnam<br>Tel: +84 251 3685 208</td></tr>
+          <tr><td class="label">Indonesian Operation<br>Indonesia's Central Warehouse</td><td>PT. JTech Jasa Pertambangan (JPT)<br>Gudang Asri Blok A2<br>Jalan Pratama Indah 05, Pelemwatu, Menganti<br>Gresik, 61174<br>Tel: +62 31 7997 1917</td></tr>
+        </table>
+        <div class="band">Website | <a href="https://www.jaconequipment.com" style="color:#fff;">www.jaconequipment.com</a></div>
+        <div class="foot">
+          <span>Document revision number: 01<br>Printed copies are not controlled.</span>
+          <span>Copyright &copy; 2026 Jacon Equipment.<br>All rights reserved.</span>
+        </div>
+      </div>
+    </section>
+
     <footer>
-      Tunnel Concrete Thickness Analyzer &mdash; this guide is opened from <code>Help &rarr; User Guide</code> inside the application.
+      Jacon PPS Report &mdash; this guide is opened from <code>Help &rarr; User Guide</code> inside the application.
     </footer>
   </main>
 </div>

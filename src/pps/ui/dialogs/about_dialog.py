@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-_APP_NAME = "Tunnel Concrete Thickness Analyzer"
+_APP_NAME = "Jacon PPS Report"
 _VERSION = "3.0"
 _ACCENT = "#2563eb"
 
@@ -36,7 +36,7 @@ def _make_logo(size: int = 56) -> QPixmap:
     font = QFont("Segoe UI", int(size * 0.42), QFont.Weight.Bold)
     painter.setFont(font)
     painter.setPen(Qt.GlobalColor.white)
-    painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "T")
+    painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "J")
     painter.end()
     return pixmap
 
@@ -73,9 +73,9 @@ class AboutDialog(QDialog):
         layout.addLayout(header)
 
         desc = QLabel(
-            "Analyzes sprayed concrete (shotcrete) thickness in tunnel "
-            "engineering from Point Cloud scan data, covering the full "
-            "workflow from measurement and annotation to PDF reporting."
+            "Generates shotcrete thickness reports from Point Cloud data "
+            "captured by the PPS scanner, covering the full workflow from "
+            "measurement and annotation to PDF reporting."
         )
         desc.setWordWrap(True)
         layout.addWidget(desc)

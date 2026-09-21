@@ -73,9 +73,12 @@ class HTMLPDFGenerator:
         visible_layers_name = ", ".join(layer.name for layer in visible_layers)
         logger.debug("Visible layers for report: %s", visible_layers_name)
 
+        report_title = ctx.get('report_title') or 'SHOTCRETE THICKNESS REPORT'
+        report_logo_path = ctx.get('report_logo_path') or resource_path("report/assets/images/logo.png")
+
         return template.render(
-            title='SHOTCRETE THICKNESS REPORT',
-            logo_path=self._escape_path(resource_path("report/assets/images/logo.png")),
+            title=report_title,
+            logo_path=self._escape_path(report_logo_path),
             project_rows=self._project_rows(project, result, target_min, target_max, ctx),
             result_main_rows=self._result_main_rows(result),
             result_stats_rows=self._result_stats_rows(result),
